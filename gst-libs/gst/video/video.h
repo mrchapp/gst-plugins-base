@@ -356,6 +356,16 @@ typedef enum {
         "height = " GST_VIDEO_SIZE_RANGE ", "                           \
         "framerate = " GST_VIDEO_FPS_RANGE
 
+
+#define GST_VIDEO_CAPS_YUV_STRIDED(fourcc, rowstride)                   \
+        GST_VIDEO_CAPS_YUV(fourcc) "; "                                 \
+        "video/x-raw-yuv-strided, "                                     \
+        "format = (fourcc) " fourcc ", "                                \
+        "rowstride = (int) " rowstride ", "                             \
+        "width = " GST_VIDEO_SIZE_RANGE ", "                            \
+        "height = " GST_VIDEO_SIZE_RANGE ", "                           \
+        "framerate = " GST_VIDEO_FPS_RANGE
+
 /* buffer flags */
 
 /**
