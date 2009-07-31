@@ -27,6 +27,8 @@
 
 
 #include <gst/video/gstvideofilter.h>
+#include <gst/video/video.h>
+
 
 G_BEGIN_DECLS
 
@@ -52,6 +54,11 @@ typedef struct _GstStrideTransformClass GstStrideTransformClass;
 struct _GstStrideTransform {
   GstVideoFilter videofilter;
 
+  /*< private >*/
+  GstVideoFormat format;
+  gint width, height;
+  gint in_rowstride;
+  gint out_rowstride;
 };
 
 struct _GstStrideTransformClass {
@@ -61,6 +68,37 @@ struct _GstStrideTransformClass {
 GType gst_stride_transform_get_type (void);
 
 G_END_DECLS
+
+
+
+
+/* note:  in case this is a build with TTIF logging, we can optimize slightly
+ * and avoid the gst_caps_to_string() in case logging isn't enabled by using
+ * the TTIF_TRACE_ARG_PROCESSOR feature of ttif_trace_fprintf():
+ */
+#ifdef GST_LOG_OVER_TTIF
+#  define LOG_CAPS(obj, caps)    G_STMT_START {                 \
+    if (caps) {                                                 \
+      static TTIF_TRACE_ARG_PROCESSOR proc = {                  \
+        .convert = (char (*)(void *))gst_caps_to_string,        \
+        .free    = (void (*)(char *))g_free                     \
+      };                                                        \
+      GST_DEBUG_OBJECT (obj, "%s: %qs", #caps, &proc, (caps));  \
+    } else {                                                    \
+      GST_DEBUG_OBJECT (obj, "null");                           \
+    }                                                           \
+  } G_STMT_END
+#else
+#  define LOG_CAPS(obj, caps)    G_STMT_START {                 \
+    if (caps) {                                                 \
+      gchar *capstr = gst_caps_to_string (caps);                \
+      GST_DEBUG_OBJECT (obj, "%s: %s", #caps, capstr);          \
+      g_free (capstr);                                          \
+    } else {                                                    \
+      GST_DEBUG_OBJECT (obj, "null");                           \
+    }                                                           \
+  } G_STMT_END
+#endif
 
 
 #endif /* __GSTSTRIDETRANSFORM_H__ */
