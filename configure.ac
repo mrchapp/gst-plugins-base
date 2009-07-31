@@ -376,6 +376,7 @@ AG_GST_CHECK_PLUGIN(ffmpegcolorspace)
 AG_GST_CHECK_PLUGIN(gdp)
 AG_GST_CHECK_PLUGIN(playback)
 AG_GST_CHECK_PLUGIN(audioresample)
+AG_GST_CHECK_PLUGIN(stride)
 AG_GST_CHECK_PLUGIN(subparse)
 AG_GST_CHECK_PLUGIN(tcp)
 AG_GST_CHECK_PLUGIN(typefind)
@@ -874,6 +875,7 @@ gst/ffmpegcolorspace/Makefile
 gst/gdp/Makefile
 gst/playback/Makefile
 gst/audioresample/Makefile
+gst/stride/Makefile
 gst/subparse/Makefile
 gst/tcp/Makefile
 gst/typefind/Makefile
