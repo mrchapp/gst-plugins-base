@@ -62,7 +62,7 @@ GST_ELEMENT_DETAILS ("Stride transform",
 
 /* TODO: add rgb formats too! */
 #define SUPPORTED_CAPS                                                        \
-  GST_VIDEO_CAPS_YUV_STRIDED ("{ I420, YV12, YUY2 }", "[ 0, max ]")
+  GST_VIDEO_CAPS_YUV_STRIDED ("{ I420, YV12, YUY2, UYVY }", "[ 0, max ]")
 
 
 static GstStaticPadTemplate src_template =
@@ -89,6 +89,10 @@ static void gst_stride_transform_dispose (GObject *obj);
 /* GstBaseTransform functions */
 static gboolean gst_stride_transform_get_unit_size (GstBaseTransform *base,
     GstCaps *caps, guint *size);
+static gboolean gst_stride_transform_transform_size (GstBaseTransform *base,
+    GstPadDirection direction,
+    GstCaps *caps, guint size,
+    GstCaps *othercaps, guint *othersize);
 static GstCaps *gst_stride_transform_transform_caps (GstBaseTransform *base,
     GstPadDirection direction, GstCaps *caps);
 static gboolean gst_stride_transform_set_caps (GstBaseTransform *base,
@@ -126,6 +130,8 @@ gst_stride_transform_class_init (GstStrideTransformClass *klass)
 
   basetransform_class->get_unit_size =
       GST_DEBUG_FUNCPTR (gst_stride_transform_get_unit_size);
+  basetransform_class->transform_size =
+      GST_DEBUG_FUNCPTR (gst_stride_transform_transform_size);
   basetransform_class->transform_caps =
       GST_DEBUG_FUNCPTR (gst_stride_transform_transform_caps);
   basetransform_class->set_caps =
@@ -176,6 +182,34 @@ gst_stride_transform_get_unit_size (GstBaseTransform *base,
   return TRUE;
 }
 
+/**
+ * Default transform_size function is no good, as it assumes that the output
+ * buffer size is a multiple of the unit size.. which doesn't hold true.
+ */
+static gboolean
+gst_stride_transform_transform_size (GstBaseTransform *base,
+    GstPadDirection direction,
+    GstCaps *caps, guint size,
+    GstCaps *othercaps, guint *othersize)
+{
+  GstStrideTransform *self = GST_STRIDE_TRANSFORM (base);
+  guint idx = (direction == GST_PAD_SINK) ? 0 : 1;
+
+  if (self->cached_caps[idx] != othercaps)
+  {
+    if (!gst_stride_transform_get_unit_size (base, othercaps,
+        &(self->cached_size[idx])))
+    {
+      return FALSE;
+    }
+  }
+
+  *othersize = self->cached_size[idx];
+
+  return TRUE;
+}
+
+
 
 /**
  * helper to add all fields, other than rowstride to @caps, copied from @s.
@@ -187,7 +221,7 @@ add_all_fields (GstCaps *caps, const gchar *name, GstStructure *s, gboolean rows
   GstStructure *new_s = gst_structure_new (name, NULL);
 
   if (rowstride) {
-    gst_structure_set (new_s, "rowstride", GST_TYPE_INT_RANGE, 1, 1000, NULL);  // TODO
+    gst_structure_set (new_s, "rowstride", GST_TYPE_INT_RANGE, 1, G_MAXINT, NULL);
   }
 
   idx = gst_structure_n_fields (s) - 1;
