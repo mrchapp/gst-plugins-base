@@ -331,7 +331,7 @@ stridemove (guchar *new_buf, guchar *orig_buf, gint new_width, gint orig_width, 
     }
   } else {
     for (row=0; row<height; row++) {
-      memmove (new_buf+(new_width*row), orig_buf+(orig_width*row), orig_width);
+      memmove (new_buf+(new_width*row), orig_buf+(orig_width*row), new_width);
     }
   }
 }
@@ -440,7 +440,9 @@ gst_stride_transform_transform (GstBaseTransform *base,
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (base);
 
-  GST_DEBUG_OBJECT (self, "inbuf=%p, outbuf=%p", inbuf, outbuf);
+  GST_DEBUG_OBJECT (self, "inbuf=%p (size=%d), outbuf=%p (size=%d)",
+      inbuf, GST_BUFFER_SIZE (inbuf),
+      outbuf, GST_BUFFER_SIZE (outbuf));
 
   if (self->in_rowstride && self->out_rowstride) {
     GST_DEBUG_OBJECT (self, "not implemented");  // TODO
