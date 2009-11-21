@@ -2025,6 +2025,9 @@ gst_video_format_get_size_strided (GstVideoFormat format,
     case GST_VIDEO_FORMAT_Y42B:
     case GST_VIDEO_FORMAT_Y444:
       return GST_ROUND_UP_4 (3 * rowstride * height);
+    case GST_VIDEO_FORMAT_NV12:
+    case GST_VIDEO_FORMAT_NV21:
+      return GST_ROUND_UP_4 (rowstride) * GST_ROUND_UP_2 (height) * 3 / 2;
     default:
       return 0;
   }
