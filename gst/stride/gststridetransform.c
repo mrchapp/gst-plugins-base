@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2009 Texas Instruments, Inc - http://www.ti.com/
  *
- * Description: V4L2 sink element
+ * Description: stride transform element
  *  Created on: Jul 30, 2009
  *      Author: Rob Clark <rob@ti.com>
  *
@@ -62,7 +62,7 @@ GST_ELEMENT_DETAILS ("Stride transform",
 
 /* TODO: add rgb formats too! */
 #define SUPPORTED_CAPS                                                        \
-  GST_VIDEO_CAPS_YUV_STRIDED ("{ I420, YV12, YUY2, UYVY }", "[ 0, max ]")
+  GST_VIDEO_CAPS_YUV_STRIDED ("{ I420, YV12, YUY2, UYVY, NV12 }", "[ 0, max ]")
 
 
 static GstStaticPadTemplate src_template =
@@ -357,12 +357,10 @@ stridify (GstStrideTransform *self, guchar *strided, guchar *unstrided)
   gint stride = self->out_rowstride;
 
   switch (self->format) {
-#if 0 /* TODO */
     case GST_VIDEO_FORMAT_NV12:
       g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
-      stridemove (strided, unstrided, stride, width, height * 1.5);
+      stridemove (strided, unstrided, stride, width, (GST_ROUND_UP_2 (height) * 3) / 2);
       return GST_FLOW_OK;
-#endif
     case GST_VIDEO_FORMAT_I420:
     case GST_VIDEO_FORMAT_YV12:
       g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
@@ -403,12 +401,10 @@ unstridify (GstStrideTransform *self, guchar *unstrided, guchar *strided)
   gint stride = self->in_rowstride;
 
   switch (self->format) {
-#if 0 /* TODO */
     case GST_VIDEO_FORMAT_NV12:
       g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
-      stridemove (unstrided, strided, width, stride, height * 1.5);
+      stridemove (unstrided, strided, width, stride, (GST_ROUND_UP_2 (height) * 3) / 2);
       return GST_FLOW_OK;
-#endif
     case GST_VIDEO_FORMAT_I420:
     case GST_VIDEO_FORMAT_YV12:
       g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
