@@ -55,7 +55,7 @@ struct _GstStrideTransform {
   GstVideoFilter videofilter;
 
   /*< private >*/
-  GstVideoFormat format;
+  GstVideoFormat in_format, out_format;
   gint width, height;
   gint in_rowstride;
   gint out_rowstride;
