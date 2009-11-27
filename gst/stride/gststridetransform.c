@@ -197,11 +197,15 @@ gst_stride_transform_transform_size (GstBaseTransform *base,
 
   if (self->cached_caps[idx] != othercaps)
   {
-    if (!gst_stride_transform_get_unit_size (base, othercaps,
-        &(self->cached_size[idx])))
-    {
+    guint sz;
+    if (!gst_stride_transform_get_unit_size (base, othercaps, &sz)) {
       return FALSE;
     }
+    if (self->cached_caps[idx]) {
+      gst_caps_unref (self->cached_caps[idx]);
+    }
+    self->cached_size[idx] = sz;
+    self->cached_caps[idx] = gst_caps_ref (othercaps);
   }
 
   *othersize = self->cached_size[idx];
