@@ -2,6 +2,7 @@ plugin_LTLIBRARIES = libgststridetransform.la
 
 libgststridetransform_la_SOURCES = \
 	gststridetransform.c \
+	convert.c \
 	plugin.c
 
 libgststridetransform_la_CFLAGS = $(GST_PLUGINS_BASE_CFLAGS) $(GST_BASE_CFLAGS) $(GST_CFLAGS)

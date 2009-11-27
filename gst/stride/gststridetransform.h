@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2009 Texas Instruments, Inc - http://www.ti.com/
  *
- * Description: V4L2 sink element
+ * Description: stride transform element
  *  Created on: Jul 2, 2009
  *      Author: Rob Clark <rob@ti.com>
  *
@@ -29,7 +29,6 @@
 #include <gst/video/gstvideofilter.h>
 #include <gst/video/video.h>
 
-
 G_BEGIN_DECLS
 
 #define GST_TYPE_STRIDE_TRANSFORM \
@@ -47,6 +46,19 @@ typedef struct _GstStrideTransform GstStrideTransform;
 typedef struct _GstStrideTransformClass GstStrideTransformClass;
 
 /**
+ * stride/colorspace conversion table (used internally)
+ */
+typedef struct {
+
+  GstVideoFormat format[2];   /* in_format, out_format */
+
+  GstFlowReturn (*stridify) (GstStrideTransform *self, guchar *strided, guchar *unstrided);
+  GstFlowReturn (*unstridify) (GstStrideTransform *self, guchar *unstrided, guchar *strided);
+
+} Conversion;
+
+
+/**
  * GstStrideTransform:
  *
  * Opaque datastructure.
@@ -55,10 +67,10 @@ struct _GstStrideTransform {
   GstVideoFilter videofilter;
 
   /*< private >*/
-  GstVideoFormat in_format, out_format;
   gint width, height;
   gint in_rowstride;
   gint out_rowstride;
+  const Conversion *conversion;
 
   /* for caching the tranform_size() results.. */
   GstCaps *cached_caps[2];
