@@ -58,6 +58,19 @@ stride_copy_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint sz
 }
 
 WEAK void
+stride_copy_zip3a (guchar *new_buf,
+    guchar *orig_buf1, guchar *orig_buf2, guchar *orig_buf3, gint sz)
+{
+  while (sz > 1) {
+    *new_buf++ = *orig_buf1++;
+    *new_buf++ = *orig_buf2++;
+    *new_buf++ = *orig_buf1++;
+    *new_buf++ = *orig_buf3++;
+    sz -= 2;
+  }
+}
+
+WEAK void
 stride_copy (guchar *new_buf, guchar *orig_buf, gint sz)
 {
   memcpy (new_buf, orig_buf, sz);
@@ -95,6 +108,36 @@ stridemove_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint new
           orig_buf2+(orig_width*row),
           new_width);
     }
+  }
+}
+
+/**
+ * move to strided buffer, interleaving three planes, where the first plane
+ * (orig_buf1) has 2x as many samples.. Ie. ABACABAC..
+ */
+static void
+stridemove_zip3a (guchar *new_buf,
+    guchar *orig_buf1, guchar *orig_buf2, guchar *orig_buf3,
+    guint new_width, gint orig_width, gint height)
+{
+  gint copy_width = (new_width < orig_width) ? new_width : orig_width;
+
+  while (height > 0) {
+
+    /* even row */
+    stride_copy_zip3a (new_buf, orig_buf1, orig_buf2, orig_buf3, copy_width);
+    new_buf += new_width;
+    orig_buf1 += orig_width;
+
+    /* odd row, recycles same U & V */
+    stride_copy_zip3a (new_buf, orig_buf1, orig_buf2, orig_buf3, copy_width);
+    new_buf += new_width;
+    orig_buf1 += orig_width;
+
+    orig_buf2 += orig_width/2;
+    orig_buf3 += orig_width/2;
+
+    height -= 2;
   }
 }
 
@@ -250,13 +293,35 @@ stridify_i420_nv12 (GstStrideTransform *self, guchar *strided, guchar *unstrided
   /* XXX widths/heights/strides that are not multiple of four??: */
   stridemove_zip2 (
       strided + (height*stride),
-      unstrided + (height*width),
-      unstrided + (int)(height*width*1.25),
-      stride, width/2, height/2);                           /* interleave U&V */
-  stridemove (strided, unstrided, stride, width, height);   /* move Y */
+      unstrided + (height*width),                           /* U */
+      unstrided + (int)(height*width*1.25),                 /* V */
+      stride, width/2, height/2);
+  stridemove (strided, unstrided, stride, width, height);   /* Y */
 
   return GST_FLOW_OK;
 }
+
+/** convert I420 unstrided to YUY2 strided */
+static GstFlowReturn
+stridify_i420_yuy2 (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+{
+  gint width  = self->width;
+  gint height = self->height;
+  gint stride = self->out_rowstride;
+
+  g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
+
+  /* XXX widths/heights/strides that are not multiple of four??: */
+  stridemove_zip3a (
+      strided,
+      unstrided,                                            /* Y */
+      unstrided + (height*width),                           /* U */
+      unstrided + (int)(height*width*1.25),                 /* V */
+      stride, width, height);
+
+  return GST_FLOW_OK;
+}
+
 
 /* last entry has GST_VIDEO_FORMAT_UNKNOWN for in/out formats */
 Conversion stride_conversions[] = {
@@ -266,6 +331,7 @@ Conversion stride_conversions[] = {
   { { GST_VIDEO_FORMAT_YUY2, GST_VIDEO_FORMAT_YUY2 }, stridify_422i_422i,   unstridify_422i_422i },
   { { GST_VIDEO_FORMAT_UYVY, GST_VIDEO_FORMAT_UYVY }, stridify_422i_422i,   unstridify_422i_422i },
   { { GST_VIDEO_FORMAT_I420, GST_VIDEO_FORMAT_NV12 }, stridify_i420_nv12,   NULL },
+  { { GST_VIDEO_FORMAT_I420, GST_VIDEO_FORMAT_YUY2 }, stridify_i420_yuy2,   NULL },
   /* add new entries before here */
   { { GST_VIDEO_FORMAT_UNKNOWN } }
 };
