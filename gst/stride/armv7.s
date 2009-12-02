@@ -69,6 +69,69 @@ stride_copy_zip2_3:
        bx lr
 @}
 
+
+       .align
+       .global stride_copy_zip3a
+       .type   stride_copy_zip3a, %function
+@void
+@stride_copy_zip3a (guchar *new_buf,
+@    guchar *orig_buf1, guchar *orig_buf2, guchar *orig_buf3, gint sz)
+@{
+@@@@ note: r0-r3, q0-3, and q8-q15 do not need to be preserved
+stride_copy_zip3a:
+       pld [r1, #64]
+       pld [r2, #64]
+       pld [r3, #64]
+       ldr ip, [sp]     @ the sz arg
+@ interleave remaining >= 32 bytes:
+       cmp ip, #32
+       blt stride_copy_zip3a_2
+stride_copy_zip3a_1:
+       vld1.8 {q8},      [r1]!  @ Y
+       vld1.8 {q10},     [r1]!  @ Y
+       vld1.8 {q9},      [r2]!  @ U
+       vld1.8 {q11},     [r3]!  @ V
+
+       pld [r1, #64]
+       pld [r2, #64]
+       pld [r3, #64]
+
+       vzip.8 q9, q11           @ interleave U&V
+       vzip.8 q8, q9            @ interleave Y1UV1
+       vzip.8 q10, q11          @ interleave Y2UV2
+
+       vst1.8 {q8,q9},   [r0]!
+       vst1.8 {q10,q11}, [r0]!
+
+       sub ip, ip, #32
+
+       cmp ip, #32
+       bge stride_copy_zip3a_1
+@ interleave remaining >= 16 bytes:
+stride_copy_zip3a_2:
+       cmp ip, #16
+       blt stride_copy_zip3a_3
+
+       vld1.8 {d16},     [r1]!  @ Y
+       vld1.8 {d18},     [r1]!  @ Y
+       vld1.8 {d17},     [r2]!  @ U
+       vld1.8 {d19},     [r3]!  @ V
+
+       vzip.8 d17, d19          @ interleave U&V
+       vzip.8 d16, d17          @ interleave Y1UV1
+       vzip.8 d18, d19          @ interleave Y2UV2
+
+       vst1.8 {d16,d17}, [r0]!
+       vst1.8 {d18,d19}, [r0]!
+
+       sub ip, ip, #16
+@ copy remaining >= 8 bytes:
+stride_copy_zip3a_3:
+@XXX
+       bx lr
+@}
+
+
        .align
        .global stride_copy
        .type   stride_copy, %function
