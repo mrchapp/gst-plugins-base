@@ -322,6 +322,35 @@ stridify_i420_yuy2 (GstStrideTransform *self, guchar *strided, guchar *unstrided
   return GST_FLOW_OK;
 }
 
+/** convert RGB565 to RGB565 strided **/
+static GstFlowReturn
+stridify_rgb565_rgb565 (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+{
+    gint width  = self->width;
+    gint height = self->height;
+    gint stride = self->out_rowstride;
+
+    g_return_val_if_fail (stride >= (width*2), GST_FLOW_ERROR);
+
+    stridemove (strided, unstrided, stride, width*2, height);
+
+    return GST_FLOW_OK;
+}
+
+/** convert RGB565 strided to RGB565 **/
+static GstFlowReturn
+unstridify_rgb565_rgb565 (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+{
+    gint width  = self->width;
+    gint height = self->height;
+    gint stride = self->in_rowstride;
+
+    g_return_val_if_fail (stride >= (width*2), GST_FLOW_ERROR);
+
+    stridemove (unstrided, strided, width*2, stride, height);
+    return GST_FLOW_OK;
+}
+
 
 /* last entry has GST_VIDEO_FORMAT_UNKNOWN for in/out formats */
 Conversion stride_conversions[] = {
@@ -332,6 +361,7 @@ Conversion stride_conversions[] = {
   { { GST_VIDEO_FORMAT_UYVY, GST_VIDEO_FORMAT_UYVY }, stridify_422i_422i,   unstridify_422i_422i },
   { { GST_VIDEO_FORMAT_I420, GST_VIDEO_FORMAT_NV12 }, stridify_i420_nv12,   NULL },
   { { GST_VIDEO_FORMAT_I420, GST_VIDEO_FORMAT_YUY2 }, stridify_i420_yuy2,   NULL },
+  { { GST_VIDEO_FORMAT_RGB16, GST_VIDEO_FORMAT_RGB16 }, stridify_rgb565_rgb565, unstridify_rgb565_rgb565 },
   /* add new entries before here */
   { { GST_VIDEO_FORMAT_UNKNOWN } }
 };
