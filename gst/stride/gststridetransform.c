@@ -66,46 +66,47 @@ GST_ELEMENT_DETAILS ("Stride transform",
 
 
 /* TODO: add rgb formats too! */
-#define SUPPORTED_CAPS                                                        \
-  GST_VIDEO_CAPS_YUV_STRIDED ("{ I420, YV12, YUY2, UYVY, NV12 }", "[ 0, max ]")
+#define YUV_SUPPORTED_CAPS                                                        \
+  GST_VIDEO_CAPS_YUV_STRIDED ("{I420, YV12, YUY2, UYVY, NV12 }", "[ 0, max ]")
+
+#define RGB_SUPPORTED_CAPS                                                        \
+  GST_VIDEO_CAPS_RGB_16_STRIDED ("[ 0, max ]")
 
 
-static GstStaticPadTemplate src_template =
-GST_STATIC_PAD_TEMPLATE ("src",
+static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (SUPPORTED_CAPS)
-);
+    GST_STATIC_CAPS (YUV_SUPPORTED_CAPS ";" RGB_SUPPORTED_CAPS)
+    );
 
-static GstStaticPadTemplate sink_template =
-GST_STATIC_PAD_TEMPLATE ("sink",
+static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (SUPPORTED_CAPS)
-);
+    GST_STATIC_CAPS (YUV_SUPPORTED_CAPS ";" RGB_SUPPORTED_CAPS)
+    );
 
 
 GST_DEBUG_CATEGORY (stridetransform_debug);
 #define GST_CAT_DEFAULT stridetransform_debug
 
 /* type functions */
-static void gst_stride_transform_dispose (GObject *obj);
+static void gst_stride_transform_dispose (GObject * obj);
 
 /* GstBaseTransform functions */
-static gboolean gst_stride_transform_get_unit_size (GstBaseTransform *base,
-    GstCaps *caps, guint *size);
-static gboolean gst_stride_transform_transform_size (GstBaseTransform *base,
+static gboolean gst_stride_transform_get_unit_size (GstBaseTransform * base,
+    GstCaps * caps, guint * size);
+static gboolean gst_stride_transform_transform_size (GstBaseTransform * base,
     GstPadDirection direction,
-    GstCaps *caps, guint size,
-    GstCaps *othercaps, guint *othersize);
-static GstCaps *gst_stride_transform_transform_caps (GstBaseTransform *base,
-    GstPadDirection direction, GstCaps *caps);
-static gboolean gst_stride_transform_set_caps (GstBaseTransform *base,
-    GstCaps *incaps, GstCaps *outcaps);
-static GstFlowReturn gst_stride_transform_transform (GstBaseTransform *base,
-    GstBuffer *inbuf, GstBuffer *outbuf);
+    GstCaps * caps, guint size, GstCaps * othercaps, guint * othersize);
+static GstCaps *gst_stride_transform_transform_caps (GstBaseTransform * base,
+    GstPadDirection direction, GstCaps * caps);
+static gboolean gst_stride_transform_set_caps (GstBaseTransform * base,
+    GstCaps * incaps, GstCaps * outcaps);
+static GstFlowReturn gst_stride_transform_transform (GstBaseTransform * base,
+    GstBuffer * inbuf, GstBuffer * outbuf);
 
-GST_BOILERPLATE (GstStrideTransform, gst_stride_transform, GstVideoFilter, GST_TYPE_VIDEO_FILTER);
+GST_BOILERPLATE (GstStrideTransform, gst_stride_transform, GstVideoFilter,
+    GST_TYPE_VIDEO_FILTER);
 
 
 static void
@@ -113,7 +114,8 @@ gst_stride_transform_base_init (gpointer g_class)
 {
   GstElementClass *gstelement_class = GST_ELEMENT_CLASS (g_class);
 
-  GST_DEBUG_CATEGORY_INIT (stridetransform_debug, "stride", 0, "stride transform element");
+  GST_DEBUG_CATEGORY_INIT (stridetransform_debug, "stride", 0,
+      "stride transform element");
 
   gst_element_class_set_details (gstelement_class, &stridetransform_details);
 
@@ -124,7 +126,7 @@ gst_stride_transform_base_init (gpointer g_class)
 }
 
 static void
-gst_stride_transform_class_init (GstStrideTransformClass *klass)
+gst_stride_transform_class_init (GstStrideTransformClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   GstBaseTransformClass *basetransform_class = GST_BASE_TRANSFORM_CLASS (klass);
@@ -146,14 +148,15 @@ gst_stride_transform_class_init (GstStrideTransformClass *klass)
 }
 
 static void
-gst_stride_transform_init (GstStrideTransform *self, GstStrideTransformClass *klass)
+gst_stride_transform_init (GstStrideTransform * self,
+    GstStrideTransformClass * klass)
 {
   GST_DEBUG_OBJECT (self, "not implemented");
 }
 
 
 static void
-gst_stride_transform_dispose (GObject *object)
+gst_stride_transform_dispose (GObject * object)
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (object);
   GST_DEBUG_OBJECT (self, "not implemented");
@@ -164,15 +167,15 @@ gst_stride_transform_dispose (GObject *object)
  * figure out the required buffer size based on @caps
  */
 static gboolean
-gst_stride_transform_get_unit_size (GstBaseTransform *base,
-    GstCaps *caps, guint *size)
+gst_stride_transform_get_unit_size (GstBaseTransform * base,
+    GstCaps * caps, guint * size)
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (base);
   GstVideoFormat format;
   gint width, height, rowstride;
 
-  g_return_val_if_fail (gst_video_format_parse_caps_strided (
-      caps, &format, &width, &height, &rowstride), FALSE);
+  g_return_val_if_fail (gst_video_format_parse_caps_strided (caps, &format,
+          &width, &height, &rowstride), FALSE);
 
   *size = gst_video_format_get_size_strided (format, width, height, rowstride);
 
@@ -188,16 +191,14 @@ gst_stride_transform_get_unit_size (GstBaseTransform *base,
  * buffer size is a multiple of the unit size.. which doesn't hold true.
  */
 static gboolean
-gst_stride_transform_transform_size (GstBaseTransform *base,
+gst_stride_transform_transform_size (GstBaseTransform * base,
     GstPadDirection direction,
-    GstCaps *caps, guint size,
-    GstCaps *othercaps, guint *othersize)
+    GstCaps * caps, guint size, GstCaps * othercaps, guint * othersize)
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (base);
   guint idx = (direction == GST_PAD_SINK) ? 0 : 1;
 
-  if (self->cached_caps[idx] != othercaps)
-  {
+  if (self->cached_caps[idx] != othercaps) {
     guint sz;
     if (!gst_stride_transform_get_unit_size (base, othercaps, &sz)) {
       return FALSE;
@@ -220,13 +221,15 @@ gst_stride_transform_transform_size (GstBaseTransform *base,
  * helper to add all fields, other than rowstride to @caps, copied from @s.
  */
 static void
-add_all_fields (GstCaps *caps, const gchar *name, GstStructure *s, gboolean rowstride, GstPadDirection direction)
+add_all_fields (GstCaps * caps, const gchar * name, GstStructure * s,
+    gboolean rowstride, GstPadDirection direction)
 {
   gint idx;
   GstStructure *new_s = gst_structure_new (name, NULL);
 
   if (rowstride) {
-    gst_structure_set (new_s, "rowstride", GST_TYPE_INT_RANGE, 1, G_MAXINT, NULL);
+    gst_structure_set (new_s, "rowstride", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+        NULL);
   }
 
   idx = gst_structure_n_fields (s) - 1;
@@ -245,15 +248,16 @@ add_all_fields (GstCaps *caps, const gchar *name, GstStructure *s, gboolean rows
       gint from_format = (direction == GST_PAD_SRC) ? 1 : 0;
 
       if (gst_structure_get_fourcc (s, "format", &fourcc)) {
-        GValue formats = {0};
-        GValue fourccval = {0};
+        GValue formats = { 0 };
+        GValue fourccval = { 0 };
         gint i;
         GstVideoFormat format = gst_video_format_from_fourcc (fourcc);
 
         g_value_init (&formats, GST_TYPE_LIST);
         g_value_init (&fourccval, GST_TYPE_FOURCC);
 
-        for (i=0; stride_conversions[i].format[0]!=GST_VIDEO_FORMAT_UNKNOWN; i++) {
+        for (i = 0; stride_conversions[i].format[0] != GST_VIDEO_FORMAT_UNKNOWN;
+            i++) {
           if (stride_conversions[i].format[from_format] == format) {
             gst_value_set_fourcc (&fourccval, gst_video_format_to_fourcc
                 (stride_conversions[i].format[to_format]));
@@ -281,8 +285,8 @@ add_all_fields (GstCaps *caps, const gchar *name, GstStructure *s, gboolean rows
  * identical parameters
  */
 static GstCaps *
-gst_stride_transform_transform_caps (GstBaseTransform *base,
-    GstPadDirection direction, GstCaps *caps)
+gst_stride_transform_transform_caps (GstBaseTransform * base,
+    GstPadDirection direction, GstCaps * caps)
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (base);
   GstCaps *ret;
@@ -321,8 +325,8 @@ gst_stride_transform_transform_caps (GstBaseTransform *base,
  * plus the requested rowstride of the @incaps and @outcaps
  */
 static gboolean
-gst_stride_transform_set_caps (GstBaseTransform *base,
-    GstCaps *incaps, GstCaps *outcaps)
+gst_stride_transform_set_caps (GstBaseTransform * base,
+    GstCaps * incaps, GstCaps * outcaps)
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (base);
   gint width, height;
@@ -333,13 +337,13 @@ gst_stride_transform_set_caps (GstBaseTransform *base,
   LOG_CAPS (self, outcaps);
 
   g_return_val_if_fail (gst_video_format_parse_caps_strided (incaps,
-      &in_format, &self->width, &self->height, &self->in_rowstride), FALSE);
+          &in_format, &self->width, &self->height, &self->in_rowstride), FALSE);
   g_return_val_if_fail (gst_video_format_parse_caps_strided (outcaps,
-      &out_format, &width, &height, &self->out_rowstride), FALSE);
+          &out_format, &width, &height, &self->out_rowstride), FALSE);
 
   self->conversion = NULL;
 
-  for (i=0; stride_conversions[i].format[0]!=GST_VIDEO_FORMAT_UNKNOWN; i++) {
+  for (i = 0; stride_conversions[i].format[0] != GST_VIDEO_FORMAT_UNKNOWN; i++) {
     if ((stride_conversions[i].format[0] == in_format) &&
         (stride_conversions[i].format[1] == out_format)) {
       GST_DEBUG_OBJECT (self, "found stride_conversion: %d", i);
@@ -349,26 +353,27 @@ gst_stride_transform_set_caps (GstBaseTransform *base,
   }
 
   g_return_val_if_fail (self->conversion, FALSE);
-  g_return_val_if_fail (self->conversion->unstridify || !self->in_rowstride, FALSE);
-  g_return_val_if_fail (self->conversion->stridify || !self->out_rowstride, FALSE);
-  g_return_val_if_fail (self->width  == width,  FALSE);
+  g_return_val_if_fail (self->conversion->unstridify
+      || !self->in_rowstride, FALSE);
+  g_return_val_if_fail (self->conversion->stridify
+      || !self->out_rowstride, FALSE);
+  g_return_val_if_fail (self->width == width, FALSE);
   g_return_val_if_fail (self->height == height, FALSE);
 
   return TRUE;
 }
 
 static GstFlowReturn
-gst_stride_transform_transform (GstBaseTransform *base,
-    GstBuffer *inbuf, GstBuffer *outbuf)
+gst_stride_transform_transform (GstBaseTransform * base,
+    GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (base);
 
   GST_DEBUG_OBJECT (self, "inbuf=%p (size=%d), outbuf=%p (size=%d)",
-      inbuf, GST_BUFFER_SIZE (inbuf),
-      outbuf, GST_BUFFER_SIZE (outbuf));
+      inbuf, GST_BUFFER_SIZE (inbuf), outbuf, GST_BUFFER_SIZE (outbuf));
 
   if (self->in_rowstride && self->out_rowstride) {
-    GST_DEBUG_OBJECT (self, "not implemented");  // TODO
+    GST_DEBUG_OBJECT (self, "not implemented"); // TODO
     return GST_FLOW_ERROR;
   } else if (self->in_rowstride) {
     return self->conversion->unstridify (self,
@@ -378,7 +383,8 @@ gst_stride_transform_transform (GstBaseTransform *base,
         GST_BUFFER_DATA (outbuf), GST_BUFFER_DATA (inbuf));
   }
 
-  GST_DEBUG_OBJECT (self, "this shouldn't happen!  in_rowstride=%d, out_rowstride=%d",
+  GST_DEBUG_OBJECT (self,
+      "this shouldn't happen!  in_rowstride=%d, out_rowstride=%d",
       self->in_rowstride, self->out_rowstride);
 
   return GST_FLOW_ERROR;
