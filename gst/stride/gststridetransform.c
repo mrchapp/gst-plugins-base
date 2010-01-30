@@ -146,7 +146,9 @@ static void
 gst_stride_transform_init (GstStrideTransform * self,
     GstStrideTransformClass * klass)
 {
-  GST_DEBUG_OBJECT (self, "not implemented");
+  GST_DEBUG_OBJECT (self, "ENTER");
+  self->cached_caps[0] = NULL;
+  self->cached_caps[1] = NULL;
 }
 
 
@@ -154,7 +156,7 @@ static void
 gst_stride_transform_dispose (GObject * object)
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (object);
-  GST_DEBUG_OBJECT (self, "not implemented");
+  GST_DEBUG_OBJECT (self, "ENTER");
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
@@ -210,7 +212,30 @@ gst_stride_transform_transform_size (GstBaseTransform * base,
   return TRUE;
 }
 
+/**
+ * helper to check possible @fourcc conversions to the list @formats
+ */
+static void
+add_all_fourcc_conversions (GValue * formats, guint32 fourcc,
+    GstPadDirection direction)
+{
+  gint to_format = (direction == GST_PAD_SINK) ? 1 : 0;
+  gint from_format = (direction == GST_PAD_SRC) ? 1 : 0;
+  GValue fourccval = { 0 };
+  gint i;
+  GstVideoFormat format = gst_video_format_from_fourcc (fourcc);
 
+  g_value_init (&fourccval, GST_TYPE_FOURCC);
+
+  for (i = 0; stride_conversions[i].format[0] != GST_VIDEO_FORMAT_UNKNOWN; i++) {
+    if (stride_conversions[i].format[from_format] == format) {
+      guint result_fourcc =
+          gst_video_format_to_fourcc (stride_conversions[i].format[to_format]);
+      gst_value_set_fourcc (&fourccval, result_fourcc);
+      gst_value_list_append_value (formats, &fourccval);
+    }
+  }
+}
 
 /**
  * helper to add all fields, other than rowstride to @caps, copied from @s.
@@ -230,43 +255,44 @@ add_all_fields (GstCaps * caps, const gchar * name, GstStructure * s,
   idx = gst_structure_n_fields (s) - 1;
   while (idx >= 0) {
     const gchar *name = gst_structure_nth_field_name (s, idx);
+    const GValue *val = gst_structure_get_value (s, name);
+
     idx--;
 
     /* for format field, check the stride_conversions table to see what
      * we can support:
      */
     if (!strcmp ("format", name)) {
-      guint fourcc;
+      GValue formats = { 0 };
 
-      /* XXX double check this: */
-      gint to_format = (direction == GST_PAD_SINK) ? 1 : 0;
-      gint from_format = (direction == GST_PAD_SRC) ? 1 : 0;
+      g_value_init (&formats, GST_TYPE_LIST);
 
-      if (gst_structure_get_fourcc (s, "format", &fourcc)) {
-        GValue formats = { 0 };
-        GValue fourccval = { 0 };
+      if (GST_VALUE_HOLDS_FOURCC (val)) {
+        add_all_fourcc_conversions (&formats,
+            gst_value_get_fourcc (val), direction);
+      } else if (GST_VALUE_HOLDS_LIST (val)) {
         gint i;
-        GstVideoFormat format = gst_video_format_from_fourcc (fourcc);
-
-        g_value_init (&formats, GST_TYPE_LIST);
-        g_value_init (&fourccval, GST_TYPE_FOURCC);
-
-        for (i = 0; stride_conversions[i].format[0] != GST_VIDEO_FORMAT_UNKNOWN;
-            i++) {
-          if (stride_conversions[i].format[from_format] == format) {
-            gst_value_set_fourcc (&fourccval, gst_video_format_to_fourcc
-                (stride_conversions[i].format[to_format]));
-            gst_value_list_append_value (&formats, &fourccval);
+        for (i = 0; i < gst_value_list_get_size (val); i++) {
+          const GValue *list_val = gst_value_list_get_value (val, i);
+          if (GST_VALUE_HOLDS_FOURCC (list_val)) {
+            add_all_fourcc_conversions (&formats,
+                gst_value_get_fourcc (list_val), direction);
+          } else {
+            GST_WARNING ("malformed caps!!");
+            break;
           }
         }
-
-        continue;
+      } else {
+        GST_WARNING ("malformed caps!!");
       }
+
+      gst_structure_set_value (new_s, "format", &formats);
+
+      continue;
     }
 
     /* copy over all other non-rowstride fields: */
     if (strcmp ("rowstride", name)) {
-      const GValue *val = gst_structure_get_value (s, name);
       gst_structure_set_value (new_s, name, val);
     }
   }
@@ -347,6 +373,10 @@ gst_stride_transform_set_caps (GstBaseTransform * base,
     }
   }
 
+  GST_DEBUG_OBJECT (self,
+      "conversion[%d]=%p, in_rowstride=%d, out_rowstride=%d",
+      i, self->conversion, self->in_rowstride, self->out_rowstride);
+
   g_return_val_if_fail (self->conversion, FALSE);
   g_return_val_if_fail (self->conversion->unstridify
       || !self->in_rowstride, FALSE);
@@ -354,6 +384,8 @@ gst_stride_transform_set_caps (GstBaseTransform * base,
       || !self->out_rowstride, FALSE);
   g_return_val_if_fail (self->width == width, FALSE);
   g_return_val_if_fail (self->height == height, FALSE);
+
+  GST_DEBUG_OBJECT (self, "caps are ok");
 
   return TRUE;
 }

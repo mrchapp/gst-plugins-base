@@ -55,7 +55,8 @@ void stride_copy_zip3a (guchar * new_buf, guchar * orig_buf1,
 void stride_copy (guchar * new_buf, guchar * orig_buf, gint sz);
 
 WEAK void
-stride_copy_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint sz)
+stride_copy_zip2 (guchar * new_buf, guchar * orig_buf1, guchar * orig_buf2,
+    gint sz)
 {
   while (sz--) {
     *new_buf++ = *orig_buf1++;
@@ -64,8 +65,8 @@ stride_copy_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint sz
 }
 
 WEAK void
-stride_copy_zip3a (guchar *new_buf,
-    guchar *orig_buf1, guchar *orig_buf2, guchar *orig_buf3, gint sz)
+stride_copy_zip3a (guchar * new_buf,
+    guchar * orig_buf1, guchar * orig_buf2, guchar * orig_buf3, gint sz)
 {
   while (sz > 1) {
     *new_buf++ = *orig_buf1++;
@@ -77,7 +78,7 @@ stride_copy_zip3a (guchar *new_buf,
 }
 
 WEAK void
-stride_copy (guchar *new_buf, guchar *orig_buf, gint sz)
+stride_copy (guchar * new_buf, guchar * orig_buf, gint sz)
 {
   memcpy (new_buf, orig_buf, sz);
 }
@@ -87,11 +88,13 @@ stride_copy (guchar *new_buf, guchar *orig_buf, gint sz)
  * move to strided buffer, interleaving two planes of identical dimensions
  */
 static void
-stridemove_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint new_width, gint orig_width, gint height)
+stridemove_zip2 (guchar * new_buf, guchar * orig_buf1, guchar * orig_buf2,
+    gint new_width, gint orig_width, gint height)
 {
   int row;
 
-  GST_DEBUG ("new_buf=%p, orig_buf1=%p, orig_buf2=%p, new_width=%d, orig_width=%d, height=%d",
+  GST_DEBUG
+      ("new_buf=%p, orig_buf1=%p, orig_buf2=%p, new_width=%d, orig_width=%d, height=%d",
       new_buf, orig_buf1, orig_buf2, new_width, orig_width, height);
 
   /* if increasing the stride, work from bottom-up to avoid overwriting data
@@ -99,20 +102,16 @@ stridemove_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint new
    * for the same reason.
    */
   if (new_width > orig_width) {
-    for (row=height-1; row>=0; row--) {
-      stride_copy_zip2 (
-          new_buf+(new_width*row),
-          orig_buf1+(orig_width*row),
-          orig_buf2+(orig_width*row),
-          orig_width);
+    for (row = height - 1; row >= 0; row--) {
+      stride_copy_zip2 (new_buf + (new_width * row),
+          orig_buf1 + (orig_width * row),
+          orig_buf2 + (orig_width * row), orig_width);
     }
   } else {
-    for (row=0; row<height; row++) {
-      stride_copy_zip2 (
-          new_buf+(new_width*row),
-          orig_buf1+(orig_width*row),
-          orig_buf2+(orig_width*row),
-          new_width);
+    for (row = 0; row < height; row++) {
+      stride_copy_zip2 (new_buf + (new_width * row),
+          orig_buf1 + (orig_width * row),
+          orig_buf2 + (orig_width * row), new_width);
     }
   }
 }
@@ -122,8 +121,8 @@ stridemove_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint new
  * (orig_buf1) has 2x as many samples.. Ie. ABACABAC..
  */
 static void
-stridemove_zip3a (guchar *new_buf,
-    guchar *orig_buf1, guchar *orig_buf2, guchar *orig_buf3,
+stridemove_zip3a (guchar * new_buf,
+    guchar * orig_buf1, guchar * orig_buf2, guchar * orig_buf3,
     guint new_width, gint orig_width, gint height)
 {
   gint copy_width = (new_width < orig_width) ? new_width : orig_width;
@@ -140,8 +139,8 @@ stridemove_zip3a (guchar *new_buf,
     new_buf += new_width;
     orig_buf1 += orig_width;
 
-    orig_buf2 += orig_width/2;
-    orig_buf3 += orig_width/2;
+    orig_buf2 += orig_width / 2;
+    orig_buf3 += orig_width / 2;
 
     height -= 2;
   }
@@ -155,7 +154,8 @@ stridemove_zip3a (guchar *new_buf,
  * enough.
  */
 static void
-stridemove (guchar *new_buf, guchar *orig_buf, gint new_width, gint orig_width, gint height)
+stridemove (guchar * new_buf, guchar * orig_buf, gint new_width,
+    gint orig_width, gint height)
 {
   int row;
 
@@ -167,12 +167,14 @@ stridemove (guchar *new_buf, guchar *orig_buf, gint new_width, gint orig_width, 
    * for the same reason.
    */
   if (new_width > orig_width) {
-    for (row=height-1; row>=0; row--) {
-      stride_copy (new_buf+(new_width*row), orig_buf+(orig_width*row), orig_width);
+    for (row = height - 1; row >= 0; row--) {
+      stride_copy (new_buf + (new_width * row), orig_buf + (orig_width * row),
+          orig_width);
     }
   } else {
-    for (row=0; row<height; row++) {
-      stride_copy (new_buf+(new_width*row), orig_buf+(orig_width*row), new_width);
+    for (row = 0; row < height; row++) {
+      stride_copy (new_buf + (new_width * row), orig_buf + (orig_width * row),
+          new_width);
     }
   }
 }
@@ -183,9 +185,10 @@ stridemove (guchar *new_buf, guchar *orig_buf, gint new_width, gint orig_width, 
 
 /** convert 4:2:0 semiplanar to same 4:2:0 semiplanar */
 static GstFlowReturn
-unstridify_420sp_420sp (GstStrideTransform *self, guchar *unstrided, guchar *strided)
+unstridify_420sp_420sp (GstStrideTransform * self, guchar * unstrided,
+    guchar * strided)
 {
-  gint width  = self->width;
+  gint width = self->width;
   gint height = self->height;
   gint stride = self->in_rowstride;
 
@@ -196,10 +199,12 @@ unstridify_420sp_420sp (GstStrideTransform *self, guchar *unstrided, guchar *str
 
   return GST_FLOW_OK;
 }
+
 static GstFlowReturn
-stridify_420sp_420sp (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+stridify_420sp_420sp (GstStrideTransform * self, guchar * strided,
+    guchar * unstrided)
 {
-  gint width  = self->width;
+  gint width = self->width;
   gint height = self->height;
   gint stride = self->out_rowstride;
 
@@ -214,115 +219,107 @@ stridify_420sp_420sp (GstStrideTransform *self, guchar *strided, guchar *unstrid
 
 /** convert 4:2:0 planar to same 4:2:0 planar */
 static GstFlowReturn
-unstridify_420p_420p (GstStrideTransform *self, guchar *unstrided, guchar *strided)
+unstridify_420p_420p (GstStrideTransform * self, guchar * unstrided,
+    guchar * strided)
 {
-  gint width  = self->width;
+  gint width = self->width;
   gint height = self->height;
   gint stride = self->in_rowstride;
 
   g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
 
-  stridemove (unstrided, strided, width, stride, height);   /* move Y */
-  stridemove (
-      unstrided + (height*width),
-      strided + (height*stride),
-      width/2, stride, height);                             /* move V/U */
+  stridemove (unstrided, strided, width, stride, height);       /* move Y */
+  stridemove (unstrided + (height * width), strided + (height * stride), width / 2, stride, height);    /* move V/U */
   /* XXX odd widths/heights/strides: */
-  stridemove (
-      unstrided + (int)(height*width*1.5),
-      strided + (int)(height*stride*1.5),
-      width/2, stride, height);                             /* move U/V */
+  stridemove (unstrided + (int) (height * width * 1.5), strided + (int) (height * stride * 1.5), width / 2, stride, height);    /* move U/V */
 
   return GST_FLOW_OK;
 }
+
 static GstFlowReturn
-stridify_420p_420p (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+stridify_420p_420p (GstStrideTransform * self, guchar * strided,
+    guchar * unstrided)
 {
-  gint width  = self->width;
+  gint width = self->width;
   gint height = self->height;
   gint stride = self->out_rowstride;
 
   g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
 
   /* XXX odd widths/heights/strides: */
-  stridemove (
-      strided + (int)(height*stride*1.5),
-      unstrided + (int)(height*width*1.5),
-      stride, width/2, height);                             /* move U/V */
-  stridemove (
-      strided + (height*stride),
-      unstrided + (height*width),
-      stride, width/2, height);                             /* move V/U */
-  stridemove (strided, unstrided, stride, width, height);   /* move Y */
+  stridemove (strided + (int) (height * stride * 1.5), unstrided + (int) (height * width * 1.5), stride, width / 2, height);    /* move U/V */
+  stridemove (strided + (height * stride), unstrided + (height * width), stride, width / 2, height);    /* move V/U */
+  stridemove (strided, unstrided, stride, width, height);       /* move Y */
 
   return GST_FLOW_OK;
 }
 
 /** convert 4:2:2 packed to same 4:2:2 packed */
 static GstFlowReturn
-unstridify_422i_422i (GstStrideTransform *self, guchar *unstrided, guchar *strided)
+unstridify_422i_422i (GstStrideTransform * self, guchar * unstrided,
+    guchar * strided)
 {
-  gint width  = self->width;
+  gint width = self->width;
   gint height = self->height;
   gint stride = self->in_rowstride;
 
-  g_return_val_if_fail (stride >= (width*2), GST_FLOW_ERROR);
+  g_return_val_if_fail (stride >= (width * 2), GST_FLOW_ERROR);
 
-  stridemove (unstrided, strided, width*2, stride, height);
+  stridemove (unstrided, strided, width * 2, stride, height);
 
   return GST_FLOW_OK;
 }
+
 static GstFlowReturn
-stridify_422i_422i (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+stridify_422i_422i (GstStrideTransform * self, guchar * strided,
+    guchar * unstrided)
 {
-  gint width  = self->width;
+  gint width = self->width;
   gint height = self->height;
   gint stride = self->out_rowstride;
 
-  g_return_val_if_fail (stride >= (width*2), GST_FLOW_ERROR);
+  g_return_val_if_fail (stride >= (width * 2), GST_FLOW_ERROR);
 
-  stridemove (strided, unstrided, stride, width*2, height);
+  stridemove (strided, unstrided, stride, width * 2, height);
 
   return GST_FLOW_OK;
 }
 
 /** convert I420 unstrided to NV12 strided */
 static GstFlowReturn
-stridify_i420_nv12 (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+stridify_i420_nv12 (GstStrideTransform * self, guchar * strided,
+    guchar * unstrided)
 {
-  gint width  = self->width;
+  gint width = self->width;
   gint height = self->height;
   gint stride = self->out_rowstride;
 
   g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
 
   /* XXX widths/heights/strides that are not multiple of four??: */
-  stridemove_zip2 (
-      strided + (height*stride),
-      unstrided + (height*width),                           /* U */
-      unstrided + (int)(height*width*1.25),                 /* V */
-      stride, width/2, height/2);
-  stridemove (strided, unstrided, stride, width, height);   /* Y */
+  stridemove_zip2 (strided + (height * stride), unstrided + (height * width),   /* U */
+      unstrided + (int) (height * width * 1.25),        /* V */
+      stride, width / 2, height / 2);
+  stridemove (strided, unstrided, stride, width, height);       /* Y */
 
   return GST_FLOW_OK;
 }
 
 /** convert I420 unstrided to YUY2 strided */
 static GstFlowReturn
-stridify_i420_yuy2 (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+stridify_i420_yuy2 (GstStrideTransform * self, guchar * strided,
+    guchar * unstrided)
 {
-  gint width  = self->width;
+  gint width = self->width;
   gint height = self->height;
   gint stride = self->out_rowstride;
 
   g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
 
   /* XXX widths/heights/strides that are not multiple of four??: */
-  stridemove_zip3a (
-      strided,
-      unstrided,                                            /* Y */
-      unstrided + (height*width),                           /* U */
-      unstrided + (int)(height*width*1.25),                 /* V */
+  stridemove_zip3a (strided, unstrided, /* Y */
+      unstrided + (height * width),     /* U */
+      unstrided + (int) (height * width * 1.25),        /* V */
       stride, width, height);
 
   return GST_FLOW_OK;
@@ -330,46 +327,51 @@ stridify_i420_yuy2 (GstStrideTransform *self, guchar *strided, guchar *unstrided
 
 /** convert RGB565 to RGB565 strided **/
 static GstFlowReturn
-stridify_rgb565_rgb565 (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+stridify_rgb565_rgb565 (GstStrideTransform * self, guchar * strided,
+    guchar * unstrided)
 {
-    gint width  = self->width;
-    gint height = self->height;
-    gint stride = self->out_rowstride;
+  gint width = self->width;
+  gint height = self->height;
+  gint stride = self->out_rowstride;
 
-    g_return_val_if_fail (stride >= (width*2), GST_FLOW_ERROR);
+  g_return_val_if_fail (stride >= (width * 2), GST_FLOW_ERROR);
 
-    stridemove (strided, unstrided, stride, width*2, height);
+  stridemove (strided, unstrided, stride, width * 2, height);
 
-    return GST_FLOW_OK;
+  return GST_FLOW_OK;
 }
 
 /** convert RGB565 strided to RGB565 **/
 static GstFlowReturn
-unstridify_rgb565_rgb565 (GstStrideTransform *self, guchar *strided, guchar *unstrided)
+unstridify_rgb565_rgb565 (GstStrideTransform * self, guchar * strided,
+    guchar * unstrided)
 {
-    gint width  = self->width;
-    gint height = self->height;
-    gint stride = self->in_rowstride;
+  gint width = self->width;
+  gint height = self->height;
+  gint stride = self->in_rowstride;
 
-    g_return_val_if_fail (stride >= (width*2), GST_FLOW_ERROR);
+  g_return_val_if_fail (stride >= (width * 2), GST_FLOW_ERROR);
 
-    stridemove (unstrided, strided, width*2, stride, height);
-    return GST_FLOW_OK;
+  stridemove (unstrided, strided, width * 2, stride, height);
+  return GST_FLOW_OK;
 }
 
+#define CONVERT(tofmt, fromfmt, stridify, unstridify)           \
+		{                                                           \
+      { GST_VIDEO_FORMAT_##tofmt, GST_VIDEO_FORMAT_##fromfmt }, \
+      stridify, unstridify                                      \
+    }
 
 /* last entry has GST_VIDEO_FORMAT_UNKNOWN for in/out formats */
-Conversion stride_conversions[] = {
-  { { GST_VIDEO_FORMAT_NV12, GST_VIDEO_FORMAT_NV12 }, stridify_420sp_420sp, unstridify_420sp_420sp },
-  { { GST_VIDEO_FORMAT_I420, GST_VIDEO_FORMAT_I420 }, stridify_420p_420p,   unstridify_420p_420p },
-  { { GST_VIDEO_FORMAT_YV12, GST_VIDEO_FORMAT_YV12 }, stridify_420p_420p,   unstridify_420p_420p },
-  { { GST_VIDEO_FORMAT_YUY2, GST_VIDEO_FORMAT_YUY2 }, stridify_422i_422i,   unstridify_422i_422i },
-  { { GST_VIDEO_FORMAT_UYVY, GST_VIDEO_FORMAT_UYVY }, stridify_422i_422i,   unstridify_422i_422i },
-  { { GST_VIDEO_FORMAT_I420, GST_VIDEO_FORMAT_NV12 }, stridify_i420_nv12,   NULL },
-  { { GST_VIDEO_FORMAT_I420, GST_VIDEO_FORMAT_YUY2 }, stridify_i420_yuy2,   NULL },
-  { { GST_VIDEO_FORMAT_RGB16, GST_VIDEO_FORMAT_RGB16 }, stridify_rgb565_rgb565, unstridify_rgb565_rgb565 },
+const Conversion stride_conversions[] = {
+  CONVERT (NV12, NV12, stridify_420sp_420sp, unstridify_420sp_420sp),
+  CONVERT (I420, I420, stridify_420p_420p, unstridify_420p_420p),
+  CONVERT (YV12, YV12, stridify_420p_420p, unstridify_420p_420p),
+  CONVERT (YUY2, YUY2, stridify_422i_422i, unstridify_422i_422i),
+  CONVERT (UYVY, UYVY, stridify_422i_422i, unstridify_422i_422i),
+  CONVERT (I420, NV12, stridify_i420_nv12, NULL),
+  CONVERT (I420, YUY2, stridify_i420_yuy2, NULL),
+  CONVERT (RGB16, RGB16, stridify_rgb565_rgb565, unstridify_rgb565_rgb565),
   /* add new entries before here */
-  { { GST_VIDEO_FORMAT_UNKNOWN } }
+  {{GST_VIDEO_FORMAT_UNKNOWN}}
 };
-
-
