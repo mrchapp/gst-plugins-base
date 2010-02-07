@@ -1267,13 +1267,13 @@ gen_video_chain (GstPlaySink * playsink, gboolean raw, gboolean async)
   }
 
   if (raw && !(playsink->flags & GST_PLAY_FLAG_NATIVE_VIDEO)) {
-    GST_DEBUG_OBJECT (playsink, "creating ffmpegcolorspace");
-    chain->conv = gst_element_factory_make ("ffmpegcolorspace", "vconv");
+    GST_DEBUG_OBJECT (playsink, "creating stridetransform");
+    chain->conv = gst_element_factory_make ("stridetransform", "vconv");
     if (chain->conv == NULL) {
-      post_missing_element_message (playsink, "ffmpegcolorspace");
+      post_missing_element_message (playsink, "stridetransform");
       GST_ELEMENT_WARNING (playsink, CORE, MISSING_PLUGIN,
           (_("Missing element '%s' - check your GStreamer installation."),
-              "ffmpegcolorspace"), ("video rendering might fail"));
+              "stridetransform"), ("video rendering might fail"));
     } else {
       gst_bin_add (bin, chain->conv);
       if (prev) {
@@ -1284,27 +1284,6 @@ gen_video_chain (GstPlaySink * playsink, gboolean raw, gboolean async)
         head = chain->conv;
       }
       prev = chain->conv;
-    }
-
-    GST_DEBUG_OBJECT (playsink, "creating videoscale");
-    chain->scale = gst_element_factory_make ("videoscale", "vscale");
-    if (chain->scale == NULL) {
-      post_missing_element_message (playsink, "videoscale");
-      GST_ELEMENT_WARNING (playsink, CORE, MISSING_PLUGIN,
-          (_("Missing element '%s' - check your GStreamer installation."),
-              "videoscale"), ("possibly a liboil version mismatch?"));
-    } else {
-      /* Add black borders if necessary to keep the DAR */
-      g_object_set (chain->scale, "add-borders", TRUE, NULL);
-      gst_bin_add (bin, chain->scale);
-      if (prev) {
-        if (!gst_element_link_pads_full (prev, "src", chain->scale, "sink",
-                GST_PAD_LINK_CHECK_TEMPLATE_CAPS))
-          goto link_failed;
-      } else {
-        head = chain->scale;
-      }
-      prev = chain->scale;
     }
   }
 
