@@ -48,6 +48,12 @@ GST_DEBUG_CATEGORY_EXTERN (stridetransform_debug);
  * Conversion utilities:
  */
 
+void stride_copy_zip2 (guchar * new_buf, guchar * orig_buf1,
+    guchar * orig_buf2, gint sz);
+void stride_copy_zip3a (guchar * new_buf, guchar * orig_buf1,
+    guchar * orig_buf2, guchar * orig_buf3, gint sz);
+void stride_copy (guchar * new_buf, guchar * orig_buf, gint sz);
+
 WEAK void
 stride_copy_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint sz)
 {
