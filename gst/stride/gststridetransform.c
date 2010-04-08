@@ -57,14 +57,6 @@
 /* last entry has GST_VIDEO_FORMAT_UNKNOWN for in/out formats */
 extern const Conversion stride_conversions[];
 
-
-static const GstElementDetails stridetransform_details =
-GST_ELEMENT_DETAILS ("Stride transform",
-    "Filter/Converter/Video",
-    "Convert between video buffers with and without stride, or with differing stride",
-    "Rob Clark <rob@ti.com>,");
-
-
 /* TODO: add rgb formats too! */
 #define YUV_SUPPORTED_CAPS                                                        \
   GST_VIDEO_CAPS_YUV_STRIDED ("{I420, YV12, YUY2, UYVY, NV12 }", "[ 0, max ]")
@@ -117,7 +109,10 @@ gst_stride_transform_base_init (gpointer g_class)
   GST_DEBUG_CATEGORY_INIT (stridetransform_debug, "stride", 0,
       "stride transform element");
 
-  gst_element_class_set_details (gstelement_class, &stridetransform_details);
+  gst_element_class_set_details_simple (gstelement_class,
+      "Stride transform", "Filter/Converter/Video",
+      "Convert between video buffers with and without stride, or with differing stride",
+      "Rob Clark <rob@ti.com>,");
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sink_template));
