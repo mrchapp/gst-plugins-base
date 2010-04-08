@@ -37,38 +37,43 @@ GST_DEBUG_CATEGORY_EXTERN (stridetransform_debug);
 #define GST_CAT_DEFAULT stridetransform_debug
 
 
+/* note: some parts of code support in-place transform.. some do not..  I'm
+ * not sure if zip/interleave functions could really support in-place copy..
+ * I need to think about this after having some sleep ;-)
+ */
+
+#define WEAK __attribute__((weak))
+
 /*
  * Conversion utilities:
  */
 
-static void
-memmove_demux (guchar *new_buf, guchar *orig_buf, gint sz, gint pxstride)
+WEAK void
+stride_copy_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint sz)
 {
-  if (new_buf > orig_buf) {
-    /* copy backwards */
-    new_buf += ((sz - 1) * pxstride);
-    orig_buf += sz - 1;
-    while(sz--) {
-      *new_buf = *orig_buf;
-      new_buf -= pxstride;
-      orig_buf--;
-    }
-  } else {
-    while(sz--) {
-      *new_buf = *orig_buf;
-      new_buf += pxstride;
-      orig_buf++;
-    }
+  while (sz--) {
+    *new_buf++ = *orig_buf1++;
+    *new_buf++ = *orig_buf2++;
   }
 }
 
+WEAK void
+stride_copy (guchar *new_buf, guchar *orig_buf, gint sz)
+{
+  memcpy (new_buf, orig_buf, sz);
+}
+
+
+/**
+ * move to strided buffer, interleaving two planes of identical dimensions
+ */
 static void
-stridemove_demux (guchar *new_buf, guchar *orig_buf, gint new_width, gint orig_width, gint height, gint pxstride)
+stridemove_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint new_width, gint orig_width, gint height)
 {
   int row;
 
-  GST_DEBUG ("new_buf=%p, orig_buf=%p, new_width=%d, orig_width=%d, height=%d",
-      new_buf, orig_buf, new_width, orig_width, height);
+  GST_DEBUG ("new_buf=%p, orig_buf1=%p, orig_buf2=%p, new_width=%d, orig_width=%d, height=%d",
+      new_buf, orig_buf1, orig_buf2, new_width, orig_width, height);
 
   /* if increasing the stride, work from bottom-up to avoid overwriting data
    * that has not been moved yet.. otherwise, work in the opposite order,
@@ -76,11 +81,19 @@ stridemove_demux (guchar *new_buf, guchar *orig_buf, gint new_width, gint orig_w
    */
   if (new_width > orig_width) {
     for (row=height-1; row>=0; row--) {
-      memmove_demux (new_buf+(new_width*row), orig_buf+(orig_width*row), orig_width, pxstride);
+      stride_copy_zip2 (
+          new_buf+(new_width*row),
+          orig_buf1+(orig_width*row),
+          orig_buf2+(orig_width*row),
+          orig_width);
     }
   } else {
     for (row=0; row<height; row++) {
-      memmove_demux (new_buf+(new_width*row), orig_buf+(orig_width*row), new_width, pxstride);
+      stride_copy_zip2 (
+          new_buf+(new_width*row),
+          orig_buf1+(orig_width*row),
+          orig_buf2+(orig_width*row),
+          new_width);
     }
   }
 }
@@ -106,11 +119,11 @@ stridemove (guchar *new_buf, guchar *orig_buf, gint new_width, gint orig_width, 
    */
   if (new_width > orig_width) {
     for (row=height-1; row>=0; row--) {
-      memmove (new_buf+(new_width*row), orig_buf+(orig_width*row), orig_width);
+      stride_copy (new_buf+(new_width*row), orig_buf+(orig_width*row), orig_width);
     }
   } else {
     for (row=0; row<height; row++) {
-      memmove (new_buf+(new_width*row), orig_buf+(orig_width*row), new_width);
+      stride_copy (new_buf+(new_width*row), orig_buf+(orig_width*row), new_width);
     }
   }
 }
@@ -234,19 +247,12 @@ stridify_i420_nv12 (GstStrideTransform *self, guchar *strided, guchar *unstrided
 
   g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
 
-  /* note: if not an in-place conversion, then doing the U&V in one pass
-   * would be more efficient... but if it is an in-place conversion, I'd
-   * need to think about whether it is potential for the new UV plane to
-   * corrupt the V plane before it is done copying..
-   */
-  stridemove_demux (
-      strided + (height*stride) + 1,
-      unstrided + (int)(height*width*1.25),
-      stride, width/2, height/2, 2);                        /* move V */
-  stridemove_demux (
+  /* XXX widths/heights/strides that are not multiple of four??: */
+  stridemove_zip2 (
       strided + (height*stride),
       unstrided + (height*width),
-      stride, width/2, height/2, 2);                        /* move U */
+      unstrided + (int)(height*width*1.25),
+      stride, width/2, height/2);                           /* interleave U&V */
   stridemove (strided, unstrided, stride, width, height);   /* move Y */
 
   return GST_FLOW_OK;
