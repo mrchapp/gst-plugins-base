@@ -2118,11 +2118,13 @@ gst_play_sink_reconfigure (GstPlaySink * playsink)
     /* we have video and we are requested to show it */
     need_video = TRUE;
 
+#if 0
     /* we only deinterlace if native video is not requested and
      * we have raw video */
     if ((flags & GST_PLAY_FLAG_DEINTERLACE)
         && !(flags & GST_PLAY_FLAG_NATIVE_VIDEO) && playsink->video_pad_raw)
       need_deinterlace = TRUE;
+#endif
   }
 
   if (playsink->audio_pad) {
