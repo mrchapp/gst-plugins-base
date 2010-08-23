@@ -112,6 +112,7 @@ struct _GstTextOverlay {
 
     gint                     width;
     gint                     height;
+    gint                     rowstride;
     gint                     fps_n;
     gint                     fps_d;
     GstVideoFormat           format;
