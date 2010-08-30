@@ -180,7 +180,7 @@ static GstStaticPadTemplate src_template_factory =
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_BGRx ";"
-        GST_VIDEO_CAPS_xRGB ";" GST_VIDEO_CAPS_YUV ("{I420, UYUV, NV12, NV21}"))
+        GST_VIDEO_CAPS_xRGB ";" GST_VIDEO_CAPS_YUV ("{I420, UYVY, NV12, NV21}"))
     );
 
 static GstStaticPadTemplate video_sink_template_factory =
@@ -188,7 +188,7 @@ static GstStaticPadTemplate video_sink_template_factory =
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_BGRx ";"
-        GST_VIDEO_CAPS_xRGB ";" GST_VIDEO_CAPS_YUV ("{I420, UYUV, NV12, NV21}"))
+        GST_VIDEO_CAPS_xRGB ";" GST_VIDEO_CAPS_YUV ("{I420, UYVY, NV12, NV21}"))
     );
 
 static GstStaticPadTemplate text_sink_template_factory =
@@ -1381,6 +1381,12 @@ gst_text_overlay_blit_NV12_NV21 (GstTextOverlay * overlay,
   int u_offset, v_offset;
   int h, w;
 
+  /* because U/V is 2x2 subsampled, we need to round, either up or down,
+   * to a boundary of integer number of U/V pixels:
+   */
+  xpos = GST_ROUND_UP_2 (xpos);
+  ypos = GST_ROUND_UP_2 (ypos);
+
   w = overlay->width;
   h = overlay->height;
 
@@ -1403,6 +1409,12 @@ gst_text_overlay_blit_I420 (GstTextOverlay * overlay,
   int y_stride, u_stride, v_stride;
   int u_offset, v_offset;
   int h, w;
+
+  /* because U/V is 2x2 subsampled, we need to round, either up or down,
+   * to a boundary of integer number of U/V pixels:
+   */
+  xpos = GST_ROUND_UP_2 (xpos);
+  ypos = GST_ROUND_UP_2 (ypos);
 
   w = overlay->width;
   h = overlay->height;
@@ -1432,6 +1444,11 @@ gst_text_overlay_blit_UYVY (GstTextOverlay * overlay,
   int i, j;
   int h, w;
   guchar *pimage, *dest;
+
+  /* because U/V is 2x horizontally subsampled, we need to round to a
+   * boundary of integer number of U/V pixels in x dimension:
+   */
+  xpos = GST_ROUND_UP_2 (xpos);
 
   w = overlay->image_width - 2;
   h = overlay->image_height - 2;
