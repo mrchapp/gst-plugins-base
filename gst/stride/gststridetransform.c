@@ -57,27 +57,6 @@
 /* last entry has GST_VIDEO_FORMAT_UNKNOWN for in/out formats */
 extern const Conversion stride_conversions[];
 
-/* TODO: add rgb formats too! */
-#define YUV_SUPPORTED_CAPS                                                        \
-  GST_VIDEO_CAPS_YUV_STRIDED ("{I420, YV12, YUY2, UYVY, NV12 }", "[ 0, max ]")
-
-#define RGB_SUPPORTED_CAPS                                                        \
-  GST_VIDEO_CAPS_RGB_16_STRIDED ("[ 0, max ]")
-
-
-static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
-    GST_PAD_SRC,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (YUV_SUPPORTED_CAPS ";" RGB_SUPPORTED_CAPS)
-    );
-
-static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
-    GST_PAD_SINK,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (YUV_SUPPORTED_CAPS ";" RGB_SUPPORTED_CAPS)
-    );
-
-
 GST_DEBUG_CATEGORY (stridetransform_debug);
 #define GST_CAT_DEFAULT stridetransform_debug
 
@@ -85,6 +64,8 @@ GST_DEBUG_CATEGORY (stridetransform_debug);
 static void gst_stride_transform_dispose (GObject * obj);
 
 /* GstBaseTransform functions */
+static gboolean gst_stride_transform_event (GstBaseTransform * trans,
+    GstEvent * event);
 static gboolean gst_stride_transform_get_unit_size (GstBaseTransform * base,
     GstCaps * caps, guint * size);
 static gboolean gst_stride_transform_transform_size (GstBaseTransform * base,
@@ -96,6 +77,7 @@ static gboolean gst_stride_transform_set_caps (GstBaseTransform * base,
     GstCaps * incaps, GstCaps * outcaps);
 static GstFlowReturn gst_stride_transform_transform (GstBaseTransform * base,
     GstBuffer * inbuf, GstBuffer * outbuf);
+static GstCaps * get_all_templ_caps (GstPadDirection direction);
 
 GST_BOILERPLATE (GstStrideTransform, gst_stride_transform, GstVideoFilter,
     GST_TYPE_VIDEO_FILTER);
@@ -115,9 +97,11 @@ gst_stride_transform_base_init (gpointer g_class)
       "Rob Clark <rob@ti.com>,");
 
   gst_element_class_add_pad_template (gstelement_class,
-      gst_static_pad_template_get (&sink_template));
+      gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
+          get_all_templ_caps (GST_PAD_SINK)));
   gst_element_class_add_pad_template (gstelement_class,
-      gst_static_pad_template_get (&src_template));
+      gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
+          get_all_templ_caps (GST_PAD_SRC)));
 }
 
 static void
@@ -128,6 +112,8 @@ gst_stride_transform_class_init (GstStrideTransformClass * klass)
 
   gobject_class->dispose = gst_stride_transform_dispose;
 
+  basetransform_class->event =
+      GST_DEBUG_FUNCPTR (gst_stride_transform_event);
   basetransform_class->get_unit_size =
       GST_DEBUG_FUNCPTR (gst_stride_transform_get_unit_size);
   basetransform_class->transform_size =
@@ -158,6 +144,35 @@ gst_stride_transform_dispose (GObject * object)
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (object);
   GST_DEBUG_OBJECT (self, "ENTER");
   G_OBJECT_CLASS (parent_class)->dispose (object);
+}
+
+static gboolean
+gst_stride_transform_event (GstBaseTransform * trans, GstEvent * event)
+{
+  GstStrideTransform *self = GST_STRIDE_TRANSFORM (trans);
+
+  GST_DEBUG_OBJECT (self, "event %" GST_PTR_FORMAT, event);
+
+  switch (GST_EVENT_TYPE (event)) {
+    /* if we get a crop, we don't change output size (yet, although it
+     * would be nice to be able to figure out if the sink supported
+     * cropping and if it does not perform the crop ourselves.. which
+     * would involve adjusting output caps appropriately).  For now
+     * we just treat it as an optimization and avoid copying the data
+     * that will be later cropped out by the sink.
+     */
+    case GST_EVENT_CROP:
+      gst_event_parse_crop (event, &self->crop_top, &self->crop_left,
+          &self->crop_width, &self->crop_height);
+      self->needs_refresh = TRUE;
+      GST_DEBUG_OBJECT (self, "cropping at %d,%d %dx%d", self->crop_top,
+          self->crop_left, self->crop_width, self->crop_height);
+    default:
+      break;
+  }
+
+  /* forward all events */
+  return TRUE;
 }
 
 /**
@@ -212,94 +227,204 @@ gst_stride_transform_transform_size (GstBaseTransform * base,
   return TRUE;
 }
 
-/**
- * helper to check possible @fourcc conversions to the list @formats
- */
-static void
-add_all_fourcc_conversions (GValue * formats, guint32 fourcc,
-    GstPadDirection direction)
+static inline GstCaps *
+get_templ_caps (GstVideoFormat fmt, gboolean strided)
 {
-  gint to_format = (direction == GST_PAD_SINK) ? 1 : 0;
-  gint from_format = (direction == GST_PAD_SRC) ? 1 : 0;
-  GValue fourccval = { 0 };
-  gint i;
-  GstVideoFormat format = gst_video_format_from_fourcc (fourcc);
-
-  g_value_init (&fourccval, GST_TYPE_FOURCC);
-
-  for (i = 0; stride_conversions[i].format[0] != GST_VIDEO_FORMAT_UNKNOWN; i++) {
-    if (stride_conversions[i].format[from_format] == format) {
-      guint result_fourcc =
-          gst_video_format_to_fourcc (stride_conversions[i].format[to_format]);
-      gst_value_set_fourcc (&fourccval, result_fourcc);
-      gst_value_list_append_value (formats, &fourccval);
-    }
-  }
+  return gst_video_format_new_caps_simple (fmt,
+      strided ? -1 : 0,
+      "width", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+      "height", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+      "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1,
+      NULL);
 }
 
 /**
- * helper to add all fields, other than rowstride to @caps, copied from @s.
+ * Utility to get all possible template caps for given direction
  */
-static void
-add_all_fields (GstCaps * caps, const gchar * name, GstStructure * s,
-    gboolean rowstride, GstPadDirection direction)
+static GstCaps *
+get_all_templ_caps (GstPadDirection direction)
+{
+  int i;
+  gint to_format = (direction == GST_PAD_SINK) ? 1 : 0;
+  GstCaps *templ = gst_caps_new_empty ();
+
+  for (i = 0; stride_conversions[i].format[0]; i++) {
+    const Conversion *c = &stride_conversions[i];
+    gst_caps_append (templ, get_templ_caps (c->format[to_format], TRUE));
+    gst_caps_append (templ, get_templ_caps (c->format[to_format], FALSE));
+  }
+
+  gst_caps_do_simplify (templ);
+
+  GST_DEBUG ("template %s caps: %"GST_PTR_FORMAT,
+      (direction == GST_PAD_SINK) ? "sink" : "src", templ);
+
+  return templ;
+}
+
+static inline gboolean
+is_filtered_field (const gchar *name)
+{
+  static const gchar * filtered_fields[] = {
+      "rowstride", "format", "bpp", "depth", "endianness",
+      "red_mask", "green_mask", "blue_mask"
+  };
+  gint i;
+  for (i = 0; i < G_N_ELEMENTS (filtered_fields); i++)
+    if (!strcmp (filtered_fields[i], name))
+      return TRUE;
+  return FALSE;
+}
+
+static inline GstCaps *
+get_caps (GstVideoFormat fmt, gboolean strided, GstStructure *s)
 {
   gint idx;
-  GstStructure *new_s = gst_structure_new (name, NULL);
-
-  if (rowstride) {
-    gst_structure_set (new_s, "rowstride", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-        NULL);
-  }
+  GstCaps *ret =
+      gst_video_format_new_caps_simple (fmt, strided ? -1 : 0, NULL);
 
   idx = gst_structure_n_fields (s) - 1;
   while (idx >= 0) {
     const gchar *name = gst_structure_nth_field_name (s, idx);
-    const GValue *val = gst_structure_get_value (s, name);
 
     idx--;
 
-    /* for format field, check the stride_conversions table to see what
-     * we can support:
+    /* filter out certain format specific fields.. copy everything else
+     * from the original struct
      */
-    if (!strcmp ("format", name)) {
-      GValue formats = { 0 };
-
-      g_value_init (&formats, GST_TYPE_LIST);
-
-      if (GST_VALUE_HOLDS_FOURCC (val)) {
-        add_all_fourcc_conversions (&formats,
-            gst_value_get_fourcc (val), direction);
-      } else if (GST_VALUE_HOLDS_LIST (val)) {
-        gint i;
-        for (i = 0; i < gst_value_list_get_size (val); i++) {
-          const GValue *list_val = gst_value_list_get_value (val, i);
-          if (GST_VALUE_HOLDS_FOURCC (list_val)) {
-            add_all_fourcc_conversions (&formats,
-                gst_value_get_fourcc (list_val), direction);
-          } else {
-            GST_WARNING ("malformed caps!!");
-            break;
-          }
-        }
-      } else {
-        GST_WARNING ("malformed caps!!");
-      }
-
-      gst_structure_set_value (new_s, "format", &formats);
-
-      continue;
-    }
-
-    /* copy over all other non-rowstride fields: */
-    if (strcmp ("rowstride", name)) {
-      gst_structure_set_value (new_s, name, val);
+    if (!is_filtered_field (name)) {
+      const GValue *val = gst_structure_get_value (s, name);
+      gst_caps_set_value (ret, name, val);
     }
   }
 
-  gst_caps_merge_structure (caps, new_s);
+  return ret;
 }
 
+/**
+ * Utility to get all possible caps that can be converted to/from (depending
+ * on 'direction') the specified 'fmt'.  The rest of the fields are populated
+ * from 's'
+ */
+static GstCaps *
+get_all_caps (GstPadDirection direction, GstVideoFormat fmt, GstStructure *s)
+{
+  GstCaps *ret = gst_caps_new_empty ();
+  gint to_format = (direction == GST_PAD_SINK) ? 1 : 0;
+  gint from_format = (direction == GST_PAD_SRC) ? 1 : 0;
+  gint i;
+
+  for (i = 0; stride_conversions[i].format[0]; i++) {
+    const Conversion *c = &stride_conversions[i];
+    if (c->format[from_format] == fmt) {
+      gst_caps_append (ret, get_caps (c->format[to_format], TRUE, s));
+      gst_caps_append (ret, get_caps (c->format[to_format], FALSE, s));
+    }
+  }
+
+  return ret;
+}
+
+/** convert GValue holding fourcc to GstVideoFormat (for YUV) */
+static inline GstVideoFormat
+fmt_from_val (const GValue *val)
+{
+  return gst_video_format_from_fourcc (gst_value_get_fourcc (val));
+}
+
+/** convert structure to GstVideoFormat (for RGB) */
+static inline GstVideoFormat
+fmt_from_struct (const GstStructure *s)
+{
+  /* hmm.. this is not supporting any case where ranges/lists are used
+   * for any of the rgb related fields in the caps.  But I'm not quite
+   * sure a sane way to handle that..  rgb caps suck
+   */
+  gint depth, bpp, endianness;
+  gint red_mask, green_mask, blue_mask, alpha_mask;
+  gboolean have_alpha, ok = TRUE;
+
+  ok &= gst_structure_get_int (s, "depth", &depth);
+  ok &= gst_structure_get_int (s, "bpp", &bpp);
+  ok &= gst_structure_get_int (s, "endianness", &endianness);
+  ok &= gst_structure_get_int (s, "red_mask", &red_mask);
+  ok &= gst_structure_get_int (s, "green_mask", &green_mask);
+  ok &= gst_structure_get_int (s, "blue_mask", &blue_mask);
+  have_alpha = gst_structure_get_int (s, "alpha_mask", &alpha_mask);
+
+  if (!ok)
+    return GST_VIDEO_FORMAT_UNKNOWN;
+
+  if (depth == 24 && bpp == 32 && endianness == G_BIG_ENDIAN) {
+    if (red_mask == 0xff000000 && green_mask == 0x00ff0000 &&
+        blue_mask == 0x0000ff00) {
+      return GST_VIDEO_FORMAT_RGBx;
+    }
+    if (red_mask == 0x0000ff00 && green_mask == 0x00ff0000 &&
+        blue_mask == 0xff000000) {
+      return GST_VIDEO_FORMAT_BGRx;
+    }
+    if (red_mask == 0x00ff0000 && green_mask == 0x0000ff00 &&
+        blue_mask == 0x000000ff) {
+      return GST_VIDEO_FORMAT_xRGB;
+    }
+    if (red_mask == 0x000000ff && green_mask == 0x0000ff00 &&
+        blue_mask == 0x00ff0000) {
+      return GST_VIDEO_FORMAT_xBGR;
+    }
+  } else if (depth == 32 && bpp == 32 && endianness == G_BIG_ENDIAN &&
+      have_alpha) {
+    if (red_mask == 0xff000000 && green_mask == 0x00ff0000 &&
+        blue_mask == 0x0000ff00 && alpha_mask == 0x000000ff) {
+      return GST_VIDEO_FORMAT_RGBA;
+    }
+    if (red_mask == 0x0000ff00 && green_mask == 0x00ff0000 &&
+        blue_mask == 0xff000000 && alpha_mask == 0x000000ff) {
+      return GST_VIDEO_FORMAT_BGRA;
+    }
+    if (red_mask == 0x00ff0000 && green_mask == 0x0000ff00 &&
+        blue_mask == 0x000000ff && alpha_mask == 0xff000000) {
+      return GST_VIDEO_FORMAT_ARGB;
+    }
+    if (red_mask == 0x000000ff && green_mask == 0x0000ff00 &&
+        blue_mask == 0x00ff0000 && alpha_mask == 0xff000000) {
+      return GST_VIDEO_FORMAT_ABGR;
+    }
+  } else if (depth == 24 && bpp == 24 && endianness == G_BIG_ENDIAN) {
+    if (red_mask == 0xff0000 && green_mask == 0x00ff00 &&
+        blue_mask == 0x0000ff) {
+      return GST_VIDEO_FORMAT_RGB;
+    }
+    if (red_mask == 0x0000ff && green_mask == 0x00ff00 &&
+        blue_mask == 0xff0000) {
+      return GST_VIDEO_FORMAT_BGR;
+    }
+  } else if ((depth == 15 || depth == 16) && bpp == 16 &&
+      endianness == G_BYTE_ORDER) {
+    if (red_mask == GST_VIDEO_COMP1_MASK_16_INT
+        && green_mask == GST_VIDEO_COMP2_MASK_16_INT
+        && blue_mask == GST_VIDEO_COMP3_MASK_16_INT) {
+      return GST_VIDEO_FORMAT_RGB16;
+    }
+    if (red_mask == GST_VIDEO_COMP3_MASK_16_INT
+        && green_mask == GST_VIDEO_COMP2_MASK_16_INT
+        && blue_mask == GST_VIDEO_COMP1_MASK_16_INT) {
+      return GST_VIDEO_FORMAT_BGR16;
+    }
+    if (red_mask == GST_VIDEO_COMP1_MASK_15_INT
+        && green_mask == GST_VIDEO_COMP2_MASK_15_INT
+        && blue_mask == GST_VIDEO_COMP3_MASK_15_INT) {
+      return GST_VIDEO_FORMAT_RGB15;
+    }
+    if (red_mask == GST_VIDEO_COMP3_MASK_15_INT
+        && green_mask == GST_VIDEO_COMP2_MASK_15_INT
+        && blue_mask == GST_VIDEO_COMP1_MASK_15_INT) {
+      return GST_VIDEO_FORMAT_BGR15;
+    }
+  }
+
+  return GST_VIDEO_FORMAT_UNKNOWN;
+}
 
 /**
  * we can transform @caps to strided or non-strided caps with otherwise
@@ -310,30 +435,49 @@ gst_stride_transform_transform_caps (GstBaseTransform * base,
     GstPadDirection direction, GstCaps * caps)
 {
   GstStrideTransform *self = GST_STRIDE_TRANSFORM (base);
-  GstCaps *ret;
-  GstStructure *s;
+  GstCaps *ret = gst_caps_new_empty ();
+  int i;
 
-  g_return_val_if_fail (GST_CAPS_IS_SIMPLE (caps), NULL);
+  for (i = 0; i < gst_caps_get_size (caps); i++) {
+    GstStructure *s = gst_caps_get_structure (caps, i);
+    const char *name = gst_structure_get_name (s);
 
-  GST_DEBUG_OBJECT (self, "direction=%d, caps=%p", direction, caps);
-  LOG_CAPS (self, caps);
+    /* this is a bit ugly.. ideally it would be easier to parse caps
+     * a bit more generically without having to care so much about
+     * difference between RGB and YUV.. but YUV can be specified as
+     * a list of format params, whereas RGB is a combination of many
+     * fields..
+     */
+    if (g_str_has_prefix (name, "video/x-raw-yuv")) {
+      const GValue *val = gst_structure_get_value (s, "format");
 
-  ret = gst_caps_new_empty ();
-  s = gst_caps_get_structure (caps, 0);
-
-  if (gst_structure_has_name (s, "video/x-raw-yuv") ||
-      gst_structure_has_name (s, "video/x-raw-yuv-strided")) {
-
-    add_all_fields (ret, "video/x-raw-yuv", s, FALSE, direction);
-    add_all_fields (ret, "video/x-raw-yuv-strided", s, TRUE, direction);
-
-  } else if (gst_structure_has_name (s, "video/x-raw-rgb") ||
-      gst_structure_has_name (s, "video/x-raw-rgb-strided")) {
-
-    add_all_fields (ret, "video/x-raw-rgb", s, FALSE, direction);
-    add_all_fields (ret, "video/x-raw-rgb-strided", s, TRUE, direction);
-
+      if (GST_VALUE_HOLDS_FOURCC (val)) {
+        gst_caps_append (ret,
+            get_all_caps (direction, fmt_from_val (val), s));
+      } else if (GST_VALUE_HOLDS_LIST (val)) {
+        gint j;
+        for (j = 0; j < gst_value_list_get_size (val); j++) {
+          const GValue *list_val = gst_value_list_get_value (val, j);
+          if (GST_VALUE_HOLDS_FOURCC (list_val)) {
+            gst_caps_append (ret,
+                get_all_caps (direction, fmt_from_val (list_val), s));
+          } else {
+            GST_WARNING_OBJECT (self,
+                "malformed format in caps: %"GST_PTR_FORMAT, s);
+            break;
+          }
+        }
+      } else {
+        GST_WARNING_OBJECT (self, "malformed yuv caps: %"GST_PTR_FORMAT, s);
+      }
+    } else if (g_str_has_prefix (name, "video/x-raw-rgb")) {
+      gst_caps_append (ret, get_all_caps (direction, fmt_from_struct (s), s));
+    } else {
+      GST_WARNING_OBJECT (self, "ignoring: %"GST_PTR_FORMAT, s);
+    }
   }
+
+  gst_caps_do_simplify (ret);
 
   LOG_CAPS (self, ret);
 
@@ -369,6 +513,7 @@ gst_stride_transform_set_caps (GstBaseTransform * base,
         (stride_conversions[i].format[1] == out_format)) {
       GST_DEBUG_OBJECT (self, "found stride_conversion: %d", i);
       self->conversion = &stride_conversions[i];
+      self->needs_refresh = TRUE;
       break;
     }
   }
@@ -378,10 +523,6 @@ gst_stride_transform_set_caps (GstBaseTransform * base,
       i, self->conversion, self->in_rowstride, self->out_rowstride);
 
   g_return_val_if_fail (self->conversion, FALSE);
-  g_return_val_if_fail (self->conversion->unstridify
-      || !self->in_rowstride, FALSE);
-  g_return_val_if_fail (self->conversion->stridify
-      || !self->out_rowstride, FALSE);
   g_return_val_if_fail (self->width == width, FALSE);
   g_return_val_if_fail (self->height == height, FALSE);
 
@@ -399,20 +540,14 @@ gst_stride_transform_transform (GstBaseTransform * base,
   GST_DEBUG_OBJECT (self, "inbuf=%p (size=%d), outbuf=%p (size=%d)",
       inbuf, GST_BUFFER_SIZE (inbuf), outbuf, GST_BUFFER_SIZE (outbuf));
 
-  if (self->in_rowstride && self->out_rowstride) {
-    GST_DEBUG_OBJECT (self, "not implemented"); // TODO
-    return GST_FLOW_ERROR;
-  } else if (self->in_rowstride) {
-    return self->conversion->unstridify (self,
-        GST_BUFFER_DATA (outbuf), GST_BUFFER_DATA (inbuf));
-  } else if (self->out_rowstride) {
-    return self->conversion->stridify (self,
+  if (self->conversion) {
+    return self->conversion->convert (self,
         GST_BUFFER_DATA (outbuf), GST_BUFFER_DATA (inbuf));
   }
 
   GST_DEBUG_OBJECT (self,
-      "this shouldn't happen!  in_rowstride=%d, out_rowstride=%d",
-      self->in_rowstride, self->out_rowstride);
+      "this shouldn't happen!  in_rowstride=%d, out_rowstride=%d, conversion=%p",
+      self->in_rowstride, self->out_rowstride, self->conversion);
 
   return GST_FLOW_ERROR;
 }

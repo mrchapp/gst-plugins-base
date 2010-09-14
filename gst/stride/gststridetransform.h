@@ -52,11 +52,18 @@ typedef struct {
 
   GstVideoFormat format[2];   /* in_format, out_format */
 
-  GstFlowReturn (*stridify) (GstStrideTransform *self, guchar *strided, guchar *unstrided);
-  GstFlowReturn (*unstridify) (GstStrideTransform *self, guchar *unstrided, guchar *strided);
+  GstFlowReturn (*convert) (GstStrideTransform *self, guchar *out, guchar *in);
 
 } Conversion;
 
+typedef struct {
+  gint in_bpl;               /* bytes per line in input */
+  gint out_bpl;              /* bytes per line in output */
+  gint in_off;
+  gint out_off;
+  gint width;
+  gint height;
+} Cache;
 
 /**
  * GstStrideTransform:
@@ -67,9 +74,23 @@ struct _GstStrideTransform {
   GstVideoFilter videofilter;
 
   /*< private >*/
+
+  /* values set from caps: */
   gint width, height;
   gint in_rowstride;
   gint out_rowstride;
+
+  /* values set from set from crop event: */
+  gint crop_width, crop_height, crop_top, crop_left;
+
+  /* cached values used for each conversion, indexed by plane in case of
+   * multi-planar formats.  These won't have zero values meaning not-used
+   * (as long as !needs_refresh), but will be set to whatever byte width/
+   * offset is appropriate for the format.
+   */
+  Cache cache[3];
+  gboolean needs_refresh;
+
   const Conversion *conversion;
 
   /* for caching the tranform_size() results.. */
