@@ -55,32 +55,31 @@ void stride_copy_zip3a (guchar * new_buf, guchar * orig_buf1,
 void stride_copy (guchar * new_buf, guchar * orig_buf, gint sz);
 
 WEAK void
-stride_copy_zip2 (guchar * new_buf, guchar * orig_buf1, guchar * orig_buf2,
-    gint sz)
+stride_copy_zip2 (guchar * out, guchar * in1, guchar * in2, gint sz)
 {
   while (sz--) {
-    *new_buf++ = *orig_buf1++;
-    *new_buf++ = *orig_buf2++;
+    *out++ = *in1++;
+    *out++ = *in2++;
   }
 }
 
 WEAK void
-stride_copy_zip3a (guchar * new_buf,
-    guchar * orig_buf1, guchar * orig_buf2, guchar * orig_buf3, gint sz)
+stride_copy_zip3a (guchar * out,
+    guchar * in1, guchar * in2, guchar * in3, gint sz)
 {
   while (sz > 1) {
-    *new_buf++ = *orig_buf1++;
-    *new_buf++ = *orig_buf2++;
-    *new_buf++ = *orig_buf1++;
-    *new_buf++ = *orig_buf3++;
+    *out++ = *in1++;
+    *out++ = *in2++;
+    *out++ = *in1++;
+    *out++ = *in3++;
     sz -= 2;
   }
 }
 
 WEAK void
-stride_copy (guchar * new_buf, guchar * orig_buf, gint sz)
+stride_copy (guchar * out, guchar * in, gint sz)
 {
-  memcpy (new_buf, orig_buf, sz);
+  memcpy (out, in, sz);
 }
 
 
@@ -88,31 +87,19 @@ stride_copy (guchar * new_buf, guchar * orig_buf, gint sz)
  * move to strided buffer, interleaving two planes of identical dimensions
  */
 static void
-stridemove_zip2 (guchar * new_buf, guchar * orig_buf1, guchar * orig_buf2,
-    gint new_width, gint orig_width, gint height)
+stridemove_zip2 (guchar * out, guchar * in1, guchar * in2,
+    gint out_bpl, gint in_bpl, gint width, gint height)
 {
   int row;
 
   GST_DEBUG
-      ("new_buf=%p, orig_buf1=%p, orig_buf2=%p, new_width=%d, orig_width=%d, height=%d",
-      new_buf, orig_buf1, orig_buf2, new_width, orig_width, height);
+      ("out=%p, in1=%p, in2=%p, out_bpl=%d, in_bpl=%d, width=%d, height=%d",
+      out, in1, in2, out_bpl, in_bpl, width, height);
 
-  /* if increasing the stride, work from bottom-up to avoid overwriting data
-   * that has not been moved yet.. otherwise, work in the opposite order,
-   * for the same reason.
-   */
-  if (new_width > orig_width) {
-    for (row = height - 1; row >= 0; row--) {
-      stride_copy_zip2 (new_buf + (new_width * row),
-          orig_buf1 + (orig_width * row),
-          orig_buf2 + (orig_width * row), orig_width);
-    }
-  } else {
-    for (row = 0; row < height; row++) {
-      stride_copy_zip2 (new_buf + (new_width * row),
-          orig_buf1 + (orig_width * row),
-          orig_buf2 + (orig_width * row), new_width);
-    }
+  for (row = 0; row < height; row++) {
+    stride_copy_zip2 (out + (out_bpl * row),
+        in1 + (in_bpl * row),
+        in2 + (in_bpl * row), width);
   }
 }
 
@@ -121,26 +108,28 @@ stridemove_zip2 (guchar * new_buf, guchar * orig_buf1, guchar * orig_buf2,
  * (orig_buf1) has 2x as many samples.. Ie. ABACABAC..
  */
 static void
-stridemove_zip3a (guchar * new_buf,
-    guchar * orig_buf1, guchar * orig_buf2, guchar * orig_buf3,
-    guint new_width, gint orig_width, gint height)
+stridemove_zip3a (guchar * out,
+    guchar * in1, guchar * in2, guchar * in3,
+    guint out_bpl, gint in_bpl, gint width, gint height)
 {
-  gint copy_width = (new_width < orig_width) ? new_width : orig_width;
+  GST_DEBUG
+      ("out=%p, in1=%p, in2=%p, in3=%p, out_bpl=%d, in_bpl=%d, width=%d, height=%d",
+      out, in1, in2, in3, out_bpl, in_bpl, width, height);
 
   while (height > 0) {
 
     /* even row */
-    stride_copy_zip3a (new_buf, orig_buf1, orig_buf2, orig_buf3, copy_width);
-    new_buf += new_width;
-    orig_buf1 += orig_width;
+    stride_copy_zip3a (out, in1, in2, in3, width);
+    out += out_bpl;
+    in1 += in_bpl;
 
     /* odd row, recycles same U & V */
-    stride_copy_zip3a (new_buf, orig_buf1, orig_buf2, orig_buf3, copy_width);
-    new_buf += new_width;
-    orig_buf1 += orig_width;
+    stride_copy_zip3a (out, in1, in2, in3, width);
+    out += out_bpl;
+    in1 += in_bpl;
 
-    orig_buf2 += orig_width / 2;
-    orig_buf3 += orig_width / 2;
+    in2 += in_bpl / 2;
+    in3 += in_bpl / 2;
 
     height -= 2;
   }
@@ -154,28 +143,18 @@ stridemove_zip3a (guchar * new_buf,
  * enough.
  */
 static void
-stridemove (guchar * new_buf, guchar * orig_buf, gint new_width,
-    gint orig_width, gint height)
+stridemove (guchar * out, guchar * in, gint out_bpl, gint in_bpl,
+    gint width, gint height)
 {
   int row;
 
-  GST_DEBUG ("new_buf=%p, orig_buf=%p, new_width=%d, orig_width=%d, height=%d",
-      new_buf, orig_buf, new_width, orig_width, height);
+  GST_DEBUG ("out=%p, in=%p, out_bpl=%d, in_bpl=%d, width=%d, height=%d",
+      out, in, out_bpl, in_bpl, width, height);
 
-  /* if increasing the stride, work from bottom-up to avoid overwriting data
-   * that has not been moved yet.. otherwise, work in the opposite order,
-   * for the same reason.
-   */
-  if (new_width > orig_width) {
-    for (row = height - 1; row >= 0; row--) {
-      stride_copy (new_buf + (new_width * row), orig_buf + (orig_width * row),
-          orig_width);
-    }
-  } else {
-    for (row = 0; row < height; row++) {
-      stride_copy (new_buf + (new_width * row), orig_buf + (orig_width * row),
-          new_width);
-    }
+  for (row = 0; row < height; row++) {
+    stride_copy (out, in, width);
+    out += out_bpl;
+    in  += in_bpl;
   }
 }
 
@@ -183,195 +162,232 @@ stridemove (guchar * new_buf, guchar * orig_buf, gint new_width,
  * Conversion Functions:
  */
 
-/** convert 4:2:0 semiplanar to same 4:2:0 semiplanar */
-static GstFlowReturn
-unstridify_420sp_420sp (GstStrideTransform * self, guchar * unstrided,
-    guchar * strided)
+/**
+ * helper to calculate offsets/sizes that are re-used for each frame (until
+ * caps or crop changes)
+ * @isx:  input sub-sampling in x direction
+ * @osx:  output sub-sampling in x direction
+ * @isy:  input sub-sampling in y direction
+ * @isx:  input sub-sampling in y direction
+ */
+static inline gboolean refresh_cache(GstStrideTransform * self,
+    gint nplanes, gint bpp, gint * isx, gint * osx, gint * isy, gint * osy)
 {
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->in_rowstride;
+  gint in_off, out_off;
+  int i;
 
-  g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
+  if (((self->crop_top + self->crop_height) > self->height) ||
+      ((self->crop_left + self->crop_width) > self->width)) {
+    GST_ERROR_OBJECT (self, "invalid crop parameter");
+    return GST_FLOW_ERROR;
+  }
 
-  stridemove (unstrided, strided, width, stride,
-      (GST_ROUND_UP_2 (height) * 3) / 2);
+  in_off = out_off = 0;
+
+  for (i = 0; i < nplanes; i++) {
+    Cache * cache = &self->cache[i];
+
+    cache->in_bpl = self->in_rowstride ?
+        self->in_rowstride : bpp * self->width;
+
+    cache->out_bpl = self->out_rowstride ?
+        self->out_rowstride : bpp * self->width;
+
+    if ((cache->in_bpl < (self->width * bpp)) ||
+        (cache->out_bpl < (self->width * bpp))) {
+      GST_ERROR_OBJECT (self, "invalid stride parameter");
+      return GST_FLOW_ERROR;
+    }
+
+    cache->width = self->crop_width ?
+        self->crop_width : self->width;
+
+    cache->height = self->crop_height ?
+        self->crop_height : self->height;
+
+    if ((cache->width > self->width) ||
+        (cache->height > self->height)) {
+      GST_ERROR_OBJECT (self, "invalid crop width/height parameter");
+      return GST_FLOW_ERROR;
+    }
+
+    /* note: everything above here is same for each plane, so in theory we
+     * could only calculate on first plane, and copy on subsequent planes
+     */
+
+    /* adjust for sub-sampling and bytes per pixel (bpp): */
+    cache->in_bpl /= *isx;
+    cache->out_bpl /= *osx;
+    cache->width *= bpp;
+    cache->width /= *isx;
+    cache->height /= *isy;
+
+    /* calculate offset to beginning of data to copy/transform: */
+    cache->in_off = in_off;
+    cache->in_off += (bpp * self->crop_left / *isx) +
+        (cache->in_bpl * self->crop_top / *isy);
+
+    cache->out_off = out_off;
+    cache->out_off += (bpp * self->crop_left / *osx) +
+        (cache->out_bpl * self->crop_top / *osy);
+
+    in_off += (self->height / *isy) * cache->in_bpl;
+    out_off += (self->height / *osy) * cache->out_bpl;
+
+    osx++;
+    isx++;
+    osy++;
+    isy++;
+  }
 
   return GST_FLOW_OK;
 }
 
-static GstFlowReturn
-stridify_420sp_420sp (GstStrideTransform * self, guchar * strided,
-    guchar * unstrided)
+/** perform simple convert between buffers of same format */
+static inline GstFlowReturn convert_n_n (GstStrideTransform *self,
+    guchar * out, guchar * in, gint nplanes)
 {
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->out_rowstride;
+  int i;
 
-  g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
-
-  g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
-  stridemove (strided, unstrided, stride, width,
-      (GST_ROUND_UP_2 (height) * 3) / 2);
+  for (i = 0; i < nplanes; i++) {
+    stridemove (out + self->cache[i].out_off, in + self->cache[i].in_off,
+        self->cache[i].out_bpl, self->cache[i].in_bpl,
+        self->cache[i].width, self->cache[i].height);
+  }
 
   return GST_FLOW_OK;
+}
+
+/** convert 4:2:0 semiplanar to same 4:2:0 semiplanar */
+static GstFlowReturn
+convert_420sp_420sp (GstStrideTransform * self,
+    guchar * out, guchar * in)
+{
+  if (G_UNLIKELY (self->needs_refresh)) {
+    gint sx[] = {1, 1};
+    gint sy[] = {1, 2};
+    if (refresh_cache (self, 2, 1, sx, sx, sy, sy))
+      return GST_FLOW_ERROR;
+    self->needs_refresh = FALSE;
+  }
+
+  return convert_n_n (self, out, in, 2);
 }
 
 /** convert 4:2:0 planar to same 4:2:0 planar */
 static GstFlowReturn
-unstridify_420p_420p (GstStrideTransform * self, guchar * unstrided,
-    guchar * strided)
+convert_420p_420p (GstStrideTransform * self,
+    guchar * out, guchar * in)
 {
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->in_rowstride;
+  if (G_UNLIKELY (self->needs_refresh)) {
+    gint sx[] = {1, 2, 2};
+    gint sy[] = {1, 2, 2};
+    if (refresh_cache (self, 3, 1, sx, sx, sy, sy))
+      return GST_FLOW_ERROR;
+    self->needs_refresh = FALSE;
+  }
 
-  g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
-
-  stridemove (unstrided, strided, width, stride, height);       /* move Y */
-  stridemove (unstrided + (height * width), strided + (height * stride), width / 2, stride, height);    /* move V/U */
-  /* XXX odd widths/heights/strides: */
-  stridemove (unstrided + (int) (height * width * 1.5), strided + (int) (height * stride * 1.5), width / 2, stride, height);    /* move U/V */
-
-  return GST_FLOW_OK;
-}
-
-static GstFlowReturn
-stridify_420p_420p (GstStrideTransform * self, guchar * strided,
-    guchar * unstrided)
-{
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->out_rowstride;
-
-  g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
-
-  /* XXX odd widths/heights/strides: */
-  stridemove (strided + (int) (height * stride * 1.5), unstrided + (int) (height * width * 1.5), stride, width / 2, height);    /* move U/V */
-  stridemove (strided + (height * stride), unstrided + (height * width), stride, width / 2, height);    /* move V/U */
-  stridemove (strided, unstrided, stride, width, height);       /* move Y */
-
-  return GST_FLOW_OK;
+  return convert_n_n (self, out, in, 3);
 }
 
 /** convert 4:2:2 packed to same 4:2:2 packed */
-static GstFlowReturn
-unstridify_422i_422i (GstStrideTransform * self, guchar * unstrided,
-    guchar * strided)
-{
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->in_rowstride;
-
-  g_return_val_if_fail (stride >= (width * 2), GST_FLOW_ERROR);
-
-  stridemove (unstrided, strided, width * 2, stride, height);
-
-  return GST_FLOW_OK;
-}
 
 static GstFlowReturn
-stridify_422i_422i (GstStrideTransform * self, guchar * strided,
-    guchar * unstrided)
+convert_422i_422i (GstStrideTransform * self,
+    guchar * out, guchar * in)
 {
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->out_rowstride;
+  if (G_UNLIKELY (self->needs_refresh)) {
+    gint sx[] = {1};
+    gint sy[] = {1};
+    if (refresh_cache (self, 1, 2, sx, sx, sy, sy))
+      return GST_FLOW_ERROR;
+    self->needs_refresh = FALSE;
+  }
 
-  g_return_val_if_fail (stride >= (width * 2), GST_FLOW_ERROR);
-
-  stridemove (strided, unstrided, stride, width * 2, height);
-
-  return GST_FLOW_OK;
+  return convert_n_n (self, out, in, 1);
 }
 
 /** convert I420 unstrided to NV12 strided */
 static GstFlowReturn
-stridify_i420_nv12 (GstStrideTransform * self, guchar * strided,
-    guchar * unstrided)
+convert_i420_nv12 (GstStrideTransform * self,
+    guchar * out, guchar * in)
 {
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->out_rowstride;
+  GstFlowReturn ret;
 
-  g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
+  if (G_UNLIKELY (self->needs_refresh)) {
+    gint isx[] = {1, 2, 2};
+    gint osx[] = {1, 1, 1};
+    gint sy[]  = {1, 2, 2};
+    if (refresh_cache (self, 3, 1, isx, osx, sy, sy))
+      return GST_FLOW_ERROR;
+    self->needs_refresh = FALSE;
+  }
 
-  /* XXX widths/heights/strides that are not multiple of four??: */
-  stridemove_zip2 (strided + (height * stride), unstrided + (height * width),   /* U */
-      unstrided + (int) (height * width * 1.25),        /* V */
-      stride, width / 2, height / 2);
-  stridemove (strided, unstrided, stride, width, height);       /* Y */
+  ret = convert_n_n (self, out, in, 1);
+  if (ret != GST_FLOW_OK)
+    return ret;
+
+  stridemove_zip2 (out + self->cache[1].out_off,
+      in + self->cache[1].in_off,      /* U */
+      in + self->cache[2].in_off,      /* V */
+      self->cache[2].out_bpl,
+      self->cache[1].in_bpl,
+      self->cache[1].width,
+      self->cache[1].height);
 
   return GST_FLOW_OK;
 }
 
 /** convert I420 unstrided to YUY2 strided */
 static GstFlowReturn
-stridify_i420_yuy2 (GstStrideTransform * self, guchar * strided,
-    guchar * unstrided)
+convert_i420_yuy2 (GstStrideTransform * self,
+    guchar * out, guchar * in)
 {
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->out_rowstride;
+  if (G_UNLIKELY (self->needs_refresh)) {
+    gint sx[] = {1, 2, 2};
+    gint sy[] = {1, 2, 2};
+    if (refresh_cache (self, 3, 1, sx, sx, sy, sy))
+      return GST_FLOW_ERROR;
+    self->needs_refresh = FALSE;
+  }
 
-  g_return_val_if_fail (stride >= width, GST_FLOW_ERROR);
-
-  /* XXX widths/heights/strides that are not multiple of four??: */
-  stridemove_zip3a (strided, unstrided, /* Y */
-      unstrided + (height * width),     /* U */
-      unstrided + (int) (height * width * 1.25),        /* V */
-      stride, width, height);
+  stridemove_zip3a (out,
+      in + self->cache[0].in_off,      /* Y */
+      in + self->cache[1].in_off,      /* U */
+      in + self->cache[2].in_off,      /* V */
+      self->cache[0].out_bpl,
+      self->cache[0].in_bpl,
+      self->cache[0].width,
+      self->cache[0].height);
 
   return GST_FLOW_OK;
 }
 
-/** convert RGB565 to RGB565 strided **/
+/** convert 16bpp rgb formats */
 static GstFlowReturn
-stridify_rgb565_rgb565 (GstStrideTransform * self, guchar * strided,
-    guchar * unstrided)
+convert_rgb16_rgb16 (GstStrideTransform * self,
+    guchar * out, guchar * in)
 {
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->out_rowstride;
-
-  g_return_val_if_fail (stride >= (width * 2), GST_FLOW_ERROR);
-
-  stridemove (strided, unstrided, stride, width * 2, height);
-
-  return GST_FLOW_OK;
+  /* format is same 2-bytes per pixel */
+  return convert_422i_422i (self, out, in);
 }
 
-/** convert RGB565 strided to RGB565 **/
-static GstFlowReturn
-unstridify_rgb565_rgb565 (GstStrideTransform * self, guchar * strided,
-    guchar * unstrided)
-{
-  gint width = self->width;
-  gint height = self->height;
-  gint stride = self->in_rowstride;
-
-  g_return_val_if_fail (stride >= (width * 2), GST_FLOW_ERROR);
-
-  stridemove (unstrided, strided, width * 2, stride, height);
-  return GST_FLOW_OK;
-}
-
-#define CONVERT(tofmt, fromfmt, stridify, unstridify)           \
+#define CONVERT(tofmt, fromfmt, convert)                        \
 		{                                                           \
       { GST_VIDEO_FORMAT_##tofmt, GST_VIDEO_FORMAT_##fromfmt }, \
-      stridify, unstridify                                      \
+      convert                                                   \
     }
 
 /* last entry has GST_VIDEO_FORMAT_UNKNOWN for in/out formats */
 const Conversion stride_conversions[] = {
-  CONVERT (NV12, NV12, stridify_420sp_420sp, unstridify_420sp_420sp),
-  CONVERT (I420, I420, stridify_420p_420p, unstridify_420p_420p),
-  CONVERT (YV12, YV12, stridify_420p_420p, unstridify_420p_420p),
-  CONVERT (YUY2, YUY2, stridify_422i_422i, unstridify_422i_422i),
-  CONVERT (UYVY, UYVY, stridify_422i_422i, unstridify_422i_422i),
-  CONVERT (I420, NV12, stridify_i420_nv12, NULL),
-  CONVERT (I420, YUY2, stridify_i420_yuy2, NULL),
-  CONVERT (RGB16, RGB16, stridify_rgb565_rgb565, unstridify_rgb565_rgb565),
+  CONVERT (NV12, NV12, convert_420sp_420sp),
+  CONVERT (I420, I420, convert_420p_420p),
+  CONVERT (YV12, YV12, convert_420p_420p),
+  CONVERT (YUY2, YUY2, convert_422i_422i),
+  CONVERT (UYVY, UYVY, convert_422i_422i),
+  CONVERT (I420, NV12, convert_i420_nv12),
+  CONVERT (I420, YUY2, convert_i420_yuy2),
+  CONVERT (RGB16, RGB16, convert_rgb16_rgb16),
   /* add new entries before here */
   {{GST_VIDEO_FORMAT_UNKNOWN}}
 };

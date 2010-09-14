@@ -28,7 +28,7 @@
        .global stride_copy_zip2
        .type   stride_copy_zip2, %function
 @void
-@stride_copy_zip2 (guchar *new_buf, guchar *orig_buf1, guchar *orig_buf2, gint sz)
+@stride_copy_zip2 (guchar * out, guchar * in1, guchar * in2, gint sz)
 @{
 @@@@ note: r0-r3, q0-3, and q8-q15 do not need to be preserved
 stride_copy_zip2:
@@ -74,8 +74,8 @@ stride_copy_zip2_3:
        .global stride_copy_zip3a
        .type   stride_copy_zip3a, %function
 @void
-@stride_copy_zip3a (guchar *new_buf,
-@    guchar *orig_buf1, guchar *orig_buf2, guchar *orig_buf3, gint sz)
+@stride_copy_zip3a (guchar * out,
+@    guchar * in1, guchar * in2, guchar * in3, gint sz)
 @{
 @@@@ note: r0-r3, q0-3, and q8-q15 do not need to be preserved
 stride_copy_zip3a:
@@ -136,7 +136,7 @@ stride_copy_zip3a_3:
        .global stride_copy
        .type   stride_copy, %function
 @void
-@stride_copy (guchar *new_buf, guchar *orig_buf, gint sz)
+@stride_copy (guchar *out, guchar *in, gint sz)
 @{
 @@@@ note: r0-r3, q0-3, and q8-q15 do not need to be preserved
 stride_copy:
