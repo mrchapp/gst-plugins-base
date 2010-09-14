@@ -430,6 +430,8 @@ GstCaps * gst_video_format_new_caps_interlaced (GstVideoFormat format,
 GstCaps * gst_video_format_new_caps_strided (GstVideoFormat format,
     int width, int height, int rowstride,
     int framerate_n, int framerate_d, int par_n, int par_d);
+GstCaps * gst_video_format_new_caps_simple (GstVideoFormat format,
+    int rowstride, const char *fieldname, ...);
 GstVideoFormat gst_video_format_from_fourcc (guint32 fourcc);
 guint32 gst_video_format_to_fourcc (GstVideoFormat format);
 gboolean gst_video_format_is_rgb (GstVideoFormat format);
