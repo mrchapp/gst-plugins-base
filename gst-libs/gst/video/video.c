@@ -625,6 +625,7 @@ gst_video_format_new_caps_simple (GstVideoFormat format, int rowstride,
     int depth;
     int bpp;
     gboolean have_alpha;
+    int endianness = G_BIG_ENDIAN;
     unsigned int mask = 0;
 
     switch (format) {
@@ -708,6 +709,7 @@ gst_video_format_new_caps_simple (GstVideoFormat format, int rowstride,
         default:
           return NULL;
       }
+      endianness = G_BYTE_ORDER;
     } else if (bpp != 8) {
       return NULL;
     }
@@ -719,7 +721,7 @@ gst_video_format_new_caps_simple (GstVideoFormat format, int rowstride,
 
     if (bpp != 8) {
       gst_structure_set (s,
-          "endianness", G_TYPE_INT, G_BIG_ENDIAN,
+          "endianness", G_TYPE_INT, endianness,
           "red_mask", G_TYPE_INT, red_mask,
           "green_mask", G_TYPE_INT, green_mask,
           "blue_mask", G_TYPE_INT, blue_mask, NULL);
