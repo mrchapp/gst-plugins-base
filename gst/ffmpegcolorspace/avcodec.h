@@ -216,7 +216,7 @@ typedef struct AVPaletteControl {
 
 } AVPaletteControl;
 
-int avpicture_get_size(int pix_fmt, int width, int height);
+int avpicture_get_size(int pix_fmt, int width, int height, int stride);
 
 void avcodec_get_chroma_sub_sample(int pix_fmt, int *h_shift, int *v_shift);
 const char *avcodec_get_pix_fmt_name(int pix_fmt);

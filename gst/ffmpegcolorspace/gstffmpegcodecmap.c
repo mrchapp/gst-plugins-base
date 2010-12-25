@@ -616,7 +616,8 @@ gst_ffmpeg_caps_to_pixfmt (const GstCaps * caps,
   if (!raw)
     return;
 
-  if (gst_structure_has_name (structure, "video/x-raw-yuv")) {
+  if (gst_structure_has_name (structure, "video/x-raw-yuv") ||
+      gst_structure_has_name (structure, "video/x-raw-yuv-strided")) {
     guint32 fourcc;
 
     if (gst_structure_get_fourcc (structure, "format", &fourcc)) {
@@ -822,10 +823,10 @@ gst_ffmpegcsp_caps_with_codectype (enum CodecType type,
 int
 gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
     uint8_t * ptr, enum PixelFormat pix_fmt, int width, int height,
-    int interlaced)
+    int stride, int interlaced)
 {
   int size, w2, h2, size2;
-  int stride, stride2;
+  int stride2;
   PixFmtInfo *pinfo;
 
   pinfo = get_pix_fmt_info (pix_fmt);
@@ -841,11 +842,15 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
     case PIX_FMT_YUVJ420P:
     case PIX_FMT_YUVJ422P:
     case PIX_FMT_YUVJ444P:
-      stride = GST_ROUND_UP_4 (width);
       h2 = ROUND_UP_X (height, pinfo->y_chroma_shift);
-      size = stride * h2;
       w2 = DIV_ROUND_UP_X (width, pinfo->x_chroma_shift);
-      stride2 = GST_ROUND_UP_4 (w2);
+      if (stride) {
+        stride2 = stride;
+      } else {
+        stride = GST_ROUND_UP_4 (width);
+        stride2 = GST_ROUND_UP_4 (w2);
+      }
+      size = stride * h2;
       h2 = DIV_ROUND_UP_X (height, pinfo->y_chroma_shift);
       size2 = stride2 * h2;
       picture->data[0] = ptr;
@@ -859,11 +864,15 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
        *  with U and V plane swapped. Strides as in videotestsrc */
     case PIX_FMT_YVU410P:
     case PIX_FMT_YVU420P:
-      stride = GST_ROUND_UP_4 (width);
       h2 = ROUND_UP_X (height, pinfo->y_chroma_shift);
-      size = stride * h2;
       w2 = DIV_ROUND_UP_X (width, pinfo->x_chroma_shift);
-      stride2 = GST_ROUND_UP_4 (w2);
+      if (stride) {
+        stride2 = stride;
+      } else {
+        stride = GST_ROUND_UP_4 (width);
+        stride2 = GST_ROUND_UP_4 (w2);
+      }
+      size = stride * h2;
       h2 = DIV_ROUND_UP_X (height, pinfo->y_chroma_shift);
       size2 = stride2 * h2;
       picture->data[0] = ptr;
@@ -875,11 +884,15 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
       return size + 2 * size2;
     case PIX_FMT_NV12:
     case PIX_FMT_NV21:
-      stride = GST_ROUND_UP_4 (width);
       h2 = ROUND_UP_X (height, pinfo->y_chroma_shift);
-      size = stride * h2;
       w2 = 2 * DIV_ROUND_UP_X (width, pinfo->x_chroma_shift);
-      stride2 = GST_ROUND_UP_4 (w2);
+      if (stride) {
+        stride2 = stride;
+      } else {
+        stride = GST_ROUND_UP_4 (width);
+        stride2 = GST_ROUND_UP_4 (w2);
+      }
+      size = stride * h2;
       h2 = DIV_ROUND_UP_X (height, pinfo->y_chroma_shift);
       size2 = stride2 * h2;
       picture->data[0] = ptr;
@@ -891,7 +904,9 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
       return size + size2;
     case PIX_FMT_RGB24:
     case PIX_FMT_BGR24:
-      stride = GST_ROUND_UP_4 (width * 3);
+      if (!stride) {
+        stride = GST_ROUND_UP_4 (width * 3);
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = NULL;
@@ -907,7 +922,9 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
     case PIX_FMT_ABGR32:
     case PIX_FMT_xRGB32:
     case PIX_FMT_BGRx32:
-      stride = width * 4;
+      if (!stride) {
+        stride = width * 4;
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = NULL;
@@ -919,7 +936,9 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
     case PIX_FMT_YUV422:
     case PIX_FMT_UYVY422:
     case PIX_FMT_YVYU422:
-      stride = GST_ROUND_UP_4 (width * 2);
+      if (!stride) {
+        stride = GST_ROUND_UP_4 (width * 2);
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = NULL;
@@ -927,7 +946,9 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
       picture->linesize[0] = stride;
       return size;
     case PIX_FMT_V308:
-      stride = GST_ROUND_UP_4 (width * 3);
+      if (!stride) {
+        stride = GST_ROUND_UP_4 (width * 3);
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = NULL;
@@ -935,8 +956,10 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
       picture->linesize[0] = stride;
       return size;
     case PIX_FMT_UYVY411:
-      /* FIXME, probably not the right stride */
-      stride = GST_ROUND_UP_4 (width);
+      if (!stride) {
+        stride = GST_ROUND_UP_4 (GST_ROUND_UP_4 (width) +
+            GST_ROUND_UP_4 (width) / 2);
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = NULL;
@@ -945,7 +968,9 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
       return size + size / 2;
     case PIX_FMT_Y800:
     case PIX_FMT_GRAY8:
-      stride = GST_ROUND_UP_4 (width);
+      if (!stride) {
+        stride = GST_ROUND_UP_4 (width);
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = NULL;
@@ -955,7 +980,9 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
     case PIX_FMT_Y16:
     case PIX_FMT_GRAY16_L:
     case PIX_FMT_GRAY16_B:
-      stride = GST_ROUND_UP_4 (width * 2);
+      if (!stride) {
+        stride = GST_ROUND_UP_4 (width * 2);
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = NULL;
@@ -964,7 +991,9 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
       return size;
     case PIX_FMT_MONOWHITE:
     case PIX_FMT_MONOBLACK:
-      stride = GST_ROUND_UP_4 ((width + 7) >> 3);
+      if (!stride) {
+        stride = GST_ROUND_UP_4 ((width + 7) >> 3);
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = NULL;
@@ -973,7 +1002,9 @@ gst_ffmpegcsp_avpicture_fill (AVPicture * picture,
       return size;
     case PIX_FMT_PAL8:
       /* already forced to be with stride, so same result as other function */
-      stride = GST_ROUND_UP_4 (width);
+      if (!stride) {
+        stride = GST_ROUND_UP_4 (width);
+      }
       size = stride * height;
       picture->data[0] = ptr;
       picture->data[1] = ptr + size;    /* palette is stored here as 256 32 bit words */

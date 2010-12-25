@@ -584,12 +584,12 @@ avpicture_layout (const AVPicture * src, int pix_fmt, int width, int height,
 #endif
 
 int
-avpicture_get_size (int pix_fmt, int width, int height)
+avpicture_get_size (int pix_fmt, int width, int height, int stride)
 {
   AVPicture dummy_pict;
 
   return gst_ffmpegcsp_avpicture_fill (&dummy_pict, NULL, pix_fmt, width,
-      height, FALSE);
+      height, stride, FALSE);
 }
 
 /**
@@ -3149,16 +3149,16 @@ get_convert_table_entry (int src_pix_fmt, int dst_pix_fmt)
 
 static int
 avpicture_alloc (AVPicture * picture, int pix_fmt, int width, int height,
-    int interlaced)
+    int stride, int interlaced)
 {
   unsigned int size;
   void *ptr;
 
-  size = avpicture_get_size (pix_fmt, width, height);
+  size = avpicture_get_size (pix_fmt, width, height, stride);
   ptr = av_malloc (size);
   if (!ptr)
     goto fail;
-  gst_ffmpegcsp_avpicture_fill (picture, ptr, pix_fmt, width, height,
+  gst_ffmpegcsp_avpicture_fill (picture, ptr, pix_fmt, width, height, stride,
       interlaced);
   return 0;
 fail:
@@ -3406,7 +3406,7 @@ no_chroma_filter:
     else
       int_pix_fmt = PIX_FMT_RGB24;
   }
-  if (avpicture_alloc (tmp, int_pix_fmt, dst_width, dst_height,
+  if (avpicture_alloc (tmp, int_pix_fmt, dst_width, dst_height, 0,
           dst->interlaced) < 0)
     return -1;
   ret = -1;

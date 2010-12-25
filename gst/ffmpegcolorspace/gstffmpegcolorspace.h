@@ -46,6 +46,7 @@ struct _GstFFMpegCsp {
   GstVideoFilter element;
 
   gint width, height;
+  gint in_stride, out_stride;
   gboolean interlaced;
   gfloat fps;
   enum PixelFormat from_pixfmt, to_pixfmt;

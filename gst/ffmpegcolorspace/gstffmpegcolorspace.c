@@ -48,6 +48,10 @@ GST_DEBUG_CATEGORY (ffmpegcolorspace_performance);
   "video/x-raw-yuv, width = "GST_VIDEO_SIZE_RANGE" , "			\
   "height="GST_VIDEO_SIZE_RANGE",framerate="GST_VIDEO_FPS_RANGE","	\
   "format= (fourcc) { I420 , NV12 , NV21 , YV12 , YUY2 , Y42B , Y444 , YUV9 , YVU9 , Y41B , Y800 , Y8 , GREY , Y16 , UYVY , YVYU , IYU1 , v308 , AYUV } ;" \
+  "video/x-raw-yuv-strided, width = "GST_VIDEO_SIZE_RANGE" , "      \
+  "height="GST_VIDEO_SIZE_RANGE",framerate="GST_VIDEO_FPS_RANGE","  \
+  "rowstride="GST_VIDEO_SIZE_RANGE"," \
+  "format= (fourcc) { I420 , NV12 , NV21 , YV12 , YUY2 , Y42B , Y444 , YUV9 , YVU9 , Y41B , Y800 , Y8 , GREY , Y16 , UYVY , YVYU , IYU1 , v308 , AYUV } ;" \
   GST_VIDEO_CAPS_RGB";"							\
   GST_VIDEO_CAPS_BGR";"							\
   GST_VIDEO_CAPS_RGBx";"						\
@@ -200,8 +204,8 @@ gst_ffmpegcsp_set_caps (GstBaseTransform * btrans, GstCaps * incaps,
 {
   GstFFMpegCsp *space;
   GstStructure *structure;
-  gint in_height, in_width;
-  gint out_height, out_width;
+  gint in_height, in_width, in_stride = 0;
+  gint out_height, out_width, out_stride = 0;
   const GValue *in_framerate = NULL;
   const GValue *out_framerate = NULL;
   const GValue *in_par = NULL;
@@ -220,6 +224,10 @@ gst_ffmpegcsp_set_caps (GstBaseTransform * btrans, GstCaps * incaps,
   if (!res)
     goto no_width_height;
 
+  /* stride is optional: */
+  if (gst_structure_has_name (structure, "video/x-raw-yuv-strided"))
+    gst_structure_get_int (structure, "rowstride", &in_stride);
+
   /* and framerate */
   in_framerate = gst_structure_get_value (structure, "framerate");
   if (in_framerate == NULL || !GST_VALUE_HOLDS_FRACTION (in_framerate))
@@ -235,6 +243,10 @@ gst_ffmpegcsp_set_caps (GstBaseTransform * btrans, GstCaps * incaps,
   res &= gst_structure_get_int (structure, "height", &out_height);
   if (!res)
     goto no_width_height;
+
+  /* stride is optional: */
+  if (gst_structure_has_name (structure, "video/x-raw-yuv-strided"))
+    gst_structure_get_int (structure, "rowstride", &out_stride);
 
   /* and framerate */
   out_framerate = gst_structure_get_value (structure, "framerate");
@@ -258,6 +270,8 @@ gst_ffmpegcsp_set_caps (GstBaseTransform * btrans, GstCaps * incaps,
 
   space->width = ctx->width = in_width;
   space->height = ctx->height = in_height;
+  space->in_stride = in_stride;
+  space->out_stride = out_stride;
 
   space->interlaced = FALSE;
   gst_structure_get_boolean (structure, "interlaced", &space->interlaced);
@@ -396,13 +410,17 @@ gst_ffmpegcsp_get_unit_size (GstBaseTransform * btrans, GstCaps * caps,
   GstStructure *structure = NULL;
   AVCodecContext *ctx = NULL;
   gboolean ret = TRUE;
-  gint width, height;
+  gint width, height, stride = 0;
 
   g_assert (size);
 
   structure = gst_caps_get_structure (caps, 0);
   gst_structure_get_int (structure, "width", &width);
   gst_structure_get_int (structure, "height", &height);
+
+  /* stride is optional: */
+  if (gst_structure_has_name (structure, "video/x-raw-yuv-strided"))
+    gst_structure_get_int (structure, "rowstride", &stride);
 
   ctx = avcodec_alloc_context ();
 
@@ -417,7 +435,7 @@ gst_ffmpegcsp_get_unit_size (GstBaseTransform * btrans, GstCaps * caps,
     goto beach;
   }
 
-  *size = avpicture_get_size (ctx->pix_fmt, width, height);
+  *size = avpicture_get_size (ctx->pix_fmt, width, height, stride);
 
   /* ffmpeg frames have the palette after the frame data, whereas
    * GStreamer currently puts it into the caps as 'palette_data' field,
@@ -455,7 +473,7 @@ gst_ffmpegcsp_transform (GstBaseTransform * btrans, GstBuffer * inbuf,
   /* fill from with source data */
   gst_ffmpegcsp_avpicture_fill (&space->from_frame,
       GST_BUFFER_DATA (inbuf), space->from_pixfmt, space->width, space->height,
-      space->interlaced);
+      space->in_stride, space->interlaced);
 
   /* fill optional palette */
   if (space->palette)
@@ -464,7 +482,7 @@ gst_ffmpegcsp_transform (GstBaseTransform * btrans, GstBuffer * inbuf,
   /* fill target frame */
   gst_ffmpegcsp_avpicture_fill (&space->to_frame,
       GST_BUFFER_DATA (outbuf), space->to_pixfmt, space->width, space->height,
-      space->interlaced);
+      space->out_stride, space->interlaced);
 
   /* and convert */
   result = img_convert (&space->to_frame, space->to_pixfmt,
