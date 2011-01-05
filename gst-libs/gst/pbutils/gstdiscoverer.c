@@ -558,7 +558,7 @@ collect_information (GstDiscoverer * dc, const GstStructure * st,
   GstCaps *caps;
   GstStructure *caps_st, *tags_st;
   const gchar *name;
-  int tmp, tmp2;
+  int tmp, tmp2, tmp3;
   guint utmp;
   gboolean btmp;
 
@@ -626,7 +626,7 @@ collect_information (GstDiscoverer * dc, const GstStructure * st,
       info->parent.caps = caps;
     }
 
-    if (gst_video_format_parse_caps (caps, &format, &tmp, &tmp2)) {
+    if (gst_video_format_parse_caps_strided (caps, &format, &tmp, &tmp2, &tmp3)) {
       info->width = (guint) tmp;
       info->height = (guint) tmp2;
     }
@@ -930,8 +930,8 @@ discoverer_collect (GstDiscoverer * dc)
           gst_caps_get_structure (dc->priv->current_info->stream_info->caps, 0);
 
       if (g_str_has_prefix (gst_structure_get_name (st), "image/"))
-        ((GstDiscovererVideoInfo *) dc->priv->current_info->
-            stream_info)->is_image = TRUE;
+        ((GstDiscovererVideoInfo *) dc->priv->current_info->stream_info)->
+            is_image = TRUE;
     }
   }
 
