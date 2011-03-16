@@ -1,3 +1,13 @@
+gst-plugins-base0.10 (0.10.32-1ubuntu3+ti0.24.12) natty; urgency=low
+
+  * Add TI patches from L24.12.
+  * Update symbols from TI patches.
+  * Update debian/rules:
+    + Do reconfiguration.
+    + Add extra configure parameters.
+
+ -- Daniel Diaz <ddiaz@ti.com>  Wed, 09 Mar 2011 19:14:42 -0600
+
 gst-plugins-base0.10 (0.10.32-1ubuntu3) natty; urgency=low
 
   * gstreamer0.10-plugins-base suggests rather than recommends on gvfs, not
