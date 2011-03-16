@@ -1,0 +1,32 @@
+From ba41af51929cd613333976e5075e072a3b473bdd Mon Sep 17 00:00:00 2001
+From: Daniel Diaz <ddiaz@ti.com>
+Date: Fri, 18 Mar 2011 14:16:22 -0600
+Subject: [PATCH] hack: Reconfigure package.
+
+Reconfigure package by running autogen.sh (but not configure),
+needed because of the stride element's changes on the autotools
+files.
+
+Signed-off-by: Daniel Diaz <ddiaz@ti.com>
+---
+ autogen.sh |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/autogen.sh b/autogen.sh
+index 70c5340..fbdddc6 100755
+--- a/autogen.sh
++++ b/autogen.sh
+@@ -100,6 +100,10 @@ if test -f disable; then
+   done
+ fi
+ 
++# disable configure altogether
++echo "Not running configure. Have a great day."
++exit 0
++
+ test -n "$NOCONFIGURE" && {
+   echo "+ skipping configure stage for package $package, as requested."
+   echo "+ autogen.sh done."
+-- 
+1.7.4.1
+
