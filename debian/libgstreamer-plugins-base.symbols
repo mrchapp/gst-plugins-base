@@ -811,6 +811,8 @@ libgstvideo-0.10.so.0 libgstreamer-plugins-base0.10-0 #MINVER#
  gst_video_format_get_pixel_stride@Base 0.10.16
  gst_video_format_get_row_stride@Base 0.10.16
  gst_video_format_get_size@Base 0.10.16
+ gst_video_format_get_size_strided@Base 0.10.29.3-1+ti0.24.7
+ gst_video_format_new_caps_simple@Base 0.10.30-2+ti0.24.10.1
  gst_video_format_get_type@Base 0.10.22
  gst_video_format_has_alpha@Base 0.10.16
  gst_video_format_is_gray@Base 0.10.29
@@ -818,8 +820,10 @@ libgstvideo-0.10.so.0 libgstreamer-plugins-base0.10-0 #MINVER#
  gst_video_format_is_yuv@Base 0.10.16
  gst_video_format_new_caps@Base 0.10.16
  gst_video_format_new_caps_interlaced@Base 0.10.23
+ gst_video_format_new_caps_strided@Base 0.10.29.3-1+ti0.24.7
  gst_video_format_parse_caps@Base 0.10.16
  gst_video_format_parse_caps_interlaced@Base 0.10.23
+ gst_video_format_parse_caps_strided@Base 0.10.29.3-1+ti0.24.7
  gst_video_format_to_fourcc@Base 0.10.16
  gst_video_frame_rate@Base 0.10.0
  gst_video_get_size@Base 0.10.0
