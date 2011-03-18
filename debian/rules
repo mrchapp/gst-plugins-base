@@ -141,7 +141,9 @@ DEB_CONFIGURE_EXTRA_FLAGS += \
 	--enable-experimental \
 	--with-package-name=$(GST_PACKAGE_NAME) \
 	--with-package-origin=$(GST_PACKAGE_ORIGIN) \
-	--with-install-plugins-helper="/usr/bin/gstreamer-codec-install"
+	--with-install-plugins-helper="/usr/bin/gstreamer-codec-install" \
+	--disable-tests \
+	--disable-valgrind
 
 # only build the docs if gtk-doc-tools is installed, i.e. binary-indep is called
 ifeq ($(shell test "`dpkg -l gtk-doc-tools | grep ^ii`" && echo binary-indep),binary-indep)
