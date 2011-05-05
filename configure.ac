@@ -345,6 +345,11 @@ AG_GST_SET_LEVEL_DEFAULT($GST_GIT)
 dnl used in examples
 AG_GST_DEFAULT_ELEMENTS
 
+dnl needed for encoding-target
+GST_DATADIR="$GST_PREFIX/share"
+AC_DEFINE_UNQUOTED(GST_DATADIR, "$GST_DATADIR", [system wide data directory])
+AC_DEFINE_UNQUOTED(GST_MAJORMINOR, "$GST_MAJORMINOR", [major/minor version])
+
 dnl behaviour of speex based audio resampler
 AC_MSG_CHECKING(which audio resample format to use for integer)
 AC_ARG_WITH([audioresample_format],
@@ -373,6 +378,7 @@ AG_GST_CHECK_PLUGIN(app)
 AG_GST_CHECK_PLUGIN(audioconvert)
 AG_GST_CHECK_PLUGIN(audiorate)
 AG_GST_CHECK_PLUGIN(audiotestsrc)
+AG_GST_CHECK_PLUGIN(encoding)
 AG_GST_CHECK_PLUGIN(ffmpegcolorspace)
 AG_GST_CHECK_PLUGIN(gdp)
 AG_GST_CHECK_PLUGIN(playback)
@@ -872,6 +878,7 @@ gst/app/Makefile
 gst/audioconvert/Makefile
 gst/audiorate/Makefile
 gst/audiotestsrc/Makefile
+gst/encoding/Makefile
 gst/ffmpegcolorspace/Makefile
 gst/gdp/Makefile
 gst/playback/Makefile
@@ -951,6 +958,7 @@ tests/check/Makefile
 tests/examples/Makefile
 tests/examples/app/Makefile
 tests/examples/dynamic/Makefile
+tests/examples/encoding/Makefile
 tests/examples/overlay/Makefile
 tests/examples/seek/Makefile
 tests/examples/volume/Makefile

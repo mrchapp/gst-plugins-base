@@ -3,6 +3,8 @@ lib_LTLIBRARIES = libgstpbutils-@GST_MAJORMINOR@.la
 headers_pbutils = \
 	pbutils.h         \
 	descriptions.h    \
+	encoding-profile.h	\
+	encoding-target.h	\
 	install-plugins.h \
 	missing-plugins.h
 
@@ -21,6 +23,8 @@ built_headers = \
 libgstpbutils_@GST_MAJORMINOR@_la_SOURCES = \
 	pbutils.c         \
 	descriptions.c    \
+	encoding-profile.c	\
+	encoding-target.c	\
 	install-plugins.c \
 	missing-plugins.c
 
