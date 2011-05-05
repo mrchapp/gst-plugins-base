@@ -1171,11 +1171,13 @@ _create_stream_group (GstEncodeBin * ebin, GstEncodingProfile * sprof,
 
     GST_LOG ("Adding conversion elements for video stream");
 
-    cspace = gst_element_factory_make ("ffmpegcolorspace", NULL);
-    scale = gst_element_factory_make ("videoscale", NULL);
+    cspace = gst_element_factory_make ("stridetransform", NULL);
+    scale = gst_element_factory_make ("identity", NULL);
     /* 4-tap scaling and black borders */
+#if 0
     g_object_set (scale, "method", 2, "add-borders", TRUE, NULL);
-    cspace2 = gst_element_factory_make ("ffmpegcolorspace", NULL);
+#endif
+    cspace2 = gst_element_factory_make ("stridetransform", NULL);
 
     gst_bin_add_many ((GstBin *) ebin, cspace, scale, cspace2, NULL);
     tosync = g_list_append (tosync, cspace);
